@@ -1,0 +1,65 @@
+
+cd /opt/
+
+ffmpeg -hide_banner -y -i peru_8k_hdr_fuhd_60fps.mp4 \
+  -vf scale=w=640:h=360:force_original_aspect_ratio=decrease -c:a aac -ar 48000 -c:v h264 -profile:v main -crf 20 -sc_threshold 0 -g 48 -keyint_min 48 -hls_time 4 -hls_playlist_type vod  -b:v 800k -maxrate 856k -bufsize 1200k -b:a 96k -hls_segment_filename 360p_%03d.ts 360p.m3u8 \
+  -vf scale=w=842:h=480:force_original_aspect_ratio=decrease -c:a aac -ar 48000 -c:v h264 -profile:v main -crf 20 -sc_threshold 0 -g 48 -keyint_min 48 -hls_time 4 -hls_playlist_type vod -b:v 1400k -maxrate 1498k -bufsize 2100k -b:a 128k -hls_segment_filename 480p_%03d.ts 480p.m3u8 \
+  -vf scale=w=1280:h=720:force_original_aspect_ratio=decrease -c:a aac -ar 48000 -c:v h264 -profile:v main -crf 20 -sc_threshold 0 -g 48 -keyint_min 48 -hls_time 4 -hls_playlist_type vod -b:v 2800k -maxrate 2996k -bufsize 4200k -b:a 128k -hls_segment_filename 720p_%03d.ts 720p.m3u8 \
+  -vf scale=w=1920:h=1080:force_original_aspect_ratio=decrease -c:a aac -ar 48000 -c:v h264 -profile:v main -crf 20 -sc_threshold 0 -g 48 -keyint_min 48 -hls_time 4 -hls_playlist_type vod -b:v 5000k -maxrate 5350k -bufsize 7500k -b:a 192k -hls_segment_filename 1080p_%03d.ts 1080p.m3u8
+
+DASH Server:
+
+nature.mp4
+peru_8k_hdr_fuhd_60fps.mp4
+ffmpeg -y -copyts -start_at_zero  -noaccurate_seek  -i peru_8k_hdr_fuhd_60fps.mp4 \
+    -keyint_min 48 -g 48 -frag_type duration -frag_duration 0.4 -sc_threshold 0 -c:v libx264 \
+    -profile:v main -crf 20 -c:a aac -ar 48000 -f dash -dash_segment_type mp4 \
+    -map v:0 -movflags frag_keyframe -s:0 640x360 -b:v:0 800k -maxrate:0 856k -bufsize:0 1200k -b:a:0 96k \
+    -map v:0 -movflags frag_keyframe -s:1 854x480 -b:v:1 1400k -maxrate:1 1498k -bufsize:1 2100k -b:a:1 128k \
+    -map v:0 -movflags frag_keyframe -s:2 1280x720 -b:v:2 2800k -maxrate:2 2996k -bufsize:2 4200k -b:a:2 128k \
+    -map v:0 -movflags frag_keyframe -s:3 1920x1080 -b:v:3 5000k -maxrate:3 5350k -bufsize:3 7500k -b:a:3 192k \
+    -map 0:a \
+    -init_seg_name chunk\$RepresentationID\$-index.mp4 -media_seg_name chunk\$RepresentationID\$-\$Number%05d\$.mp4 \
+    -use_template 0 -use_timeline 0  \
+    -seg_duration 4 -adaptation_sets "id=0,streams=v id=1,streams=a" \
+    dash.mpd
+
+
+vi peru_8k_hdr_fuhd_60fps.m3u8
+
+#EXTM3U
+#EXT-X-VERSION:3
+#EXT-X-STREAM-INF:BANDWIDTH=800000,RESOLUTION=640x360
+360p.m3u8
+#EXT-X-STREAM-INF:BANDWIDTH=1400000,RESOLUTION=842x480
+480p.m3u8
+#EXT-X-STREAM-INF:BANDWIDTH=2800000,RESOLUTION=1280x720
+720p.m3u8
+#EXT-X-STREAM-INF:BANDWIDTH=5000000,RESOLUTION=1920x1080
+1080p.m3u8
+
+
+ffmpeg -re -i http://128.110.218.254/stream.m3u8 -c copy -bsf:a aac_adtstoasc output.mp4
+
+ffmpeg -i rtmp://128.110.218.254:15692/live/stream -c copy -bsf:a aac_adtstoasc output.mp4
+
+tc qdisc add dev eno33np0 root netem rate 4mbit
+tc qdisc del dev eno33np0 root
+
+
+http://128.110.219.88/dash.mpd
+
+
+ls -ltr chunk*-0*.mp4 | awk '{print $9}' > mylist.txt
+sed -i -e "s/^/file '/" mylist.txt
+sed -e "s/$/'/" -i mylist.txt
+
+
+
+
+
+
+
+
+
+
