@@ -40,6 +40,7 @@ import http.client
 import io
 import json
 import shutil
+import subprocess
 from string import ascii_letters, digits
 from argparse import ArgumentParser
 from multiprocessing import Process, Queue
@@ -141,31 +142,31 @@ def download_segment(segment_url, dash_folder, index_file=None):
         segment_path = segment_path[1:]
     segment_filename = os.path.join(dash_folder,
                                     os.path.basename(segment_path))
+    segment_temp_filename = os.path.join(dash_folder,
+                                    "temp"+os.path.basename(segment_path))
     make_sure_path_exists(os.path.dirname(segment_filename))
+
+    bashCommand = "curl -o {} -s -w 'total_time=%{{{}}}\\nsize_download=%{{{}}}\\n' {}".format(segment_temp_filename, "time_total", "size_download", segment_url)
+    process = subprocess.Popen(bashCommand.split(), stdout=subprocess.PIPE, shell=True)
+    output, error = process.communicate()
+    segment_download_time = float(output.decode().split('\n')[0].replace("\r",'').split("=")[-1])
+    segment_size = int(output.decode().split('\n')[1].replace("\r",'').split("=")[-1])
+    #print(segment_download_time, segment_size)
+    start_time = timeit.default_timer()
     segment_file_handle = open(segment_filename, 'wb')
     if index_file != None:
-        #print("index_file", index_file)
         fo = open(index_file, "rb")
         shutil.copyfileobj(fo, segment_file_handle)
         fo.close()
-    segment_size = 0
-    start_time = timeit.default_timer()
-    try:
-        connection = urllib.request.urlopen(segment_url)
-    except urllib.error.HTTPError as error:
-        config_dash.LOG.error(
-            "Unable to download DASH Segment {} HTTP Error:{} ".format(
-                segment_url, str(error.code)))
-        return None
-    while True:
-        segment_data = connection.read(DOWNLOAD_CHUNK)
-        segment_size += len(segment_data)
-        segment_file_handle.write(segment_data)
-        if len(segment_data) < DOWNLOAD_CHUNK:
-            break
-    segment_download_time = timeit.default_timer() - start_time
-    connection.close()
     segment_file_handle.close()
+    with open(segment_filename, "ab") as myfile, open(segment_temp_filename, "rb") as file2:
+        myfile.write(file2.read())
+    try:
+        os.remove(segment_temp_filename)
+    except:
+        pass
+    fio = timeit.default_timer() - start_time
+    #print("fio",fio)
     #print "segment size = {}".format(segment_size)
     #print "segment filename = {}".format(segment_filename)
     return segment_size, segment_filename, segment_download_time
@@ -390,7 +391,6 @@ def start_playback_smart(dp_object,
             delay = 0
             config_dash.LOG.debug("SLEPT for {}seconds ".format(time.time() -
                                                                 delay_start))
-        start_time = timeit.default_timer()
         segment_download_time = 0
         try:
             #print 'url'
