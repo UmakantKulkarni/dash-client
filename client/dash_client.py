@@ -147,7 +147,7 @@ def download_segment(segment_url, dash_folder, index_file=None):
     make_sure_path_exists(os.path.dirname(segment_filename))
 
     bashCommand = "curl -o {} -s -w 'total_time=%{{{}}}\\nsize_download=%{{{}}}\\n' {}".format(segment_temp_filename, "time_total", "size_download", segment_url)
-    process = subprocess.Popen(bashCommand.split(), stdout=subprocess.PIPE, shell=True)
+    process = subprocess.Popen(bashCommand.split(), stdout=subprocess.PIPE)
     output, error = process.communicate()
     segment_download_time = float(output.decode().split('\n')[0].replace("\r",'').split("=")[-1])
     segment_size = int(output.decode().split('\n')[1].replace("\r",'').split("=")[-1])
