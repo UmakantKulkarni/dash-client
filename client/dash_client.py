@@ -135,13 +135,6 @@ def id_generator(id_size=6):
 
 def download_segment(segment_url, dash_folder, index_file=None):
     """ Module to download the segment """
-    try:
-        connection = urllib.request.urlopen(segment_url)
-    except urllib.error.HTTPError as error:
-        config_dash.LOG.error(
-            "Unable to download DASH Segment {} HTTP Error:{} ".format(
-                segment_url, str(error.code)))
-        return None
     parsed_uri = urllib.parse.urlparse(segment_url)
     segment_path = '{uri.path}'.format(uri=parsed_uri)
     while segment_path.startswith('/'):
@@ -156,18 +149,26 @@ def download_segment(segment_url, dash_folder, index_file=None):
         shutil.copyfileobj(fo, segment_file_handle)
         fo.close()
     segment_size = 0
+    start_time = timeit.default_timer()
+    try:
+        connection = urllib.request.urlopen(segment_url)
+    except urllib.error.HTTPError as error:
+        config_dash.LOG.error(
+            "Unable to download DASH Segment {} HTTP Error:{} ".format(
+                segment_url, str(error.code)))
+        return None
     while True:
         segment_data = connection.read(DOWNLOAD_CHUNK)
         segment_size += len(segment_data)
         segment_file_handle.write(segment_data)
         if len(segment_data) < DOWNLOAD_CHUNK:
             break
-
+    segment_download_time = timeit.default_timer() - start_time
     connection.close()
     segment_file_handle.close()
     #print "segment size = {}".format(segment_size)
     #print "segment filename = {}".format(segment_filename)
-    return segment_size, segment_filename
+    return segment_size, segment_filename, segment_download_time
 
 
 def get_media_all(domain, media_info, file_identifier, done_queue):
@@ -390,6 +391,7 @@ def start_playback_smart(dp_object,
             config_dash.LOG.debug("SLEPT for {}seconds ".format(time.time() -
                                                                 delay_start))
         start_time = timeit.default_timer()
+        segment_download_time = 0
         try:
             #print 'url'
             #print segment_url
@@ -398,14 +400,14 @@ def start_playback_smart(dp_object,
             if not index_dict[str(int(current_bitrate))]["index_downloaded"]:
                 index_segment_url = urllib.parse.urljoin(
                     domain, dp_object.video[current_bitrate].initialization)
-                _, index_segment_filename = download_segment(
+                _, index_segment_filename, _ = download_segment(
                     index_segment_url, file_identifier)
                 index_dict[str(int(
                     current_bitrate))]["index_file"] = index_segment_filename
                 config_dash.LOG.info("{}: Downloaded index segment {}".format(
                     playback_type.upper(), index_segment_url))
                 index_dict[str(int(current_bitrate))]["index_downloaded"] = 1
-            segment_size, segment_filename = download_segment(
+            segment_size, segment_filename, segment_download_time = download_segment(
                 segment_url,
                 file_identifier,
                 index_file=index_dict[str(int(current_bitrate))]["index_file"])
@@ -414,7 +416,7 @@ def start_playback_smart(dp_object,
         except IOError as e:
             config_dash.LOG.error("Unable to save segment %s" % e)
             return None
-        segment_download_time = timeit.default_timer() - start_time
+        #segment_download_time = timeit.default_timer() - start_time
         previous_segment_times.append(segment_download_time)
         recent_download_sizes.append(segment_size)
         # Updating the JSON information
@@ -484,13 +486,19 @@ def get_average_segment_sizes(dp_object):
     """
     average_segment_sizes = dict()
     for bitrate in dp_object.video:
-        segment_sizes = dp_object.video[bitrate].segment_sizes
-        segment_sizes = [float(i) for i in segment_sizes]
-        try:
-            average_segment_sizes[bitrate] = sum(segment_sizes) / len(
-                segment_sizes)
-        except ZeroDivisionError:
-            average_segment_sizes[bitrate] = 0
+        num_segments = len(dp_object.video[bitrate].url_list)
+        total_video_duration = dp_object.playback_duration
+        total_size = bitrate * total_video_duration
+        segment_size = total_size/num_segments
+        average_segment_sizes[bitrate] = segment_size*8/1000
+        if 0:
+            segment_sizes = dp_object.video[bitrate].segment_sizes
+            segment_sizes = [float(i) for i in segment_sizes]
+            try:
+                average_segment_sizes[bitrate] = sum(segment_sizes) / len(
+                    segment_sizes)
+            except ZeroDivisionError:
+                average_segment_sizes[bitrate] = 0
     config_dash.LOG.info("The avearge segment size for is {}".format(
         list(average_segment_sizes.items())))
     return average_segment_sizes
