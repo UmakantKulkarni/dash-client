@@ -384,6 +384,8 @@ def start_playback_smart(dp_object,
                 # Reference - https://conferences.sigcomm.org/sigcomm/2015/pdf/papers/p325.pdf:
                 # In this paper we assume that the player immediately starts to download chunk k + 1 as soon as chunk k is downloaded.
                 # The one exception is when the buffer is full, the player waits for the buffer to reduce to a level which allows chunk k to be appended
+                # Also as per Figure 6 from http://tiny-tera.stanford.edu/~nickm/papers/sigcomm2014-video.pdf
+                # f(B) should be designed to en- sure a chunk can always be downloaded before the buffer shrinks into the reservoir area.
                 if dash_player.buffer.qsize(
                 ) >= config_dash.NETFLIX_BUFFER_SIZE:
                     delay = (dash_player.buffer.qsize() -
