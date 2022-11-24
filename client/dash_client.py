@@ -246,10 +246,11 @@ def start_playback_smart(dp_object,
         # Getting the URL list for each bitrate
         dp_object.video[bitrate] = read_mpd.get_url_list(
             dp_object, video_segment_duration, bitrate, brcount)
-
+        
         if "$Bandwidth$" in dp_object.video[bitrate].initialization:
             dp_object.video[bitrate].initialization = dp_object.video[
                 bitrate].initialization.replace("$Bandwidth$", str(bitrate))
+
         #media_urls = [dp_object.video[bitrate].initialization] + dp_object.video[bitrate].url_list
         media_urls = dp_object.video[bitrate].url_list
         #print("media urls",media_urls)
@@ -277,11 +278,12 @@ def start_playback_smart(dp_object,
     segment_duration = 0
     segment_size = segment_download_time = None
     # Netflix Variables
-    average_segment_sizes = netflix_rate_map = None
+    netflix_rate_map = None
+    average_segment_sizes = get_average_segment_sizes(dp_object)
     netflix_state = "INITIAL"
     # Start playback of all the segments
     for segment_number, segment in enumerate(
-            dp_list, dp_object.video[current_bitrate].start):
+            dp_list, dp_object.video[current_bitrate].start):        
         config_dash.LOG.info(" {}: Processing the segment {}".format(
             playback_type.upper(), segment_number))
         if not previous_bitrate:
@@ -330,11 +332,8 @@ def start_playback_smart(dp_object,
             elif playback_type.upper() == "NETFLIX":
                 config_dash.LOG.info("Playback is NETFLIX")
                 # Calculate the average segment sizes for each bitrate
-                if not average_segment_sizes:
-                    average_segment_sizes = get_average_segment_sizes(
-                        dp_object)
                 if segment_number < len(
-                        dp_list) - 1 + dp_object.video[bitrate].start:
+                        dp_list) + dp_object.video[bitrate].start:
                     try:
                         if segment_size and segment_download_time:
                             segment_download_rate = segment_size / segment_download_time
@@ -355,13 +354,9 @@ def start_playback_smart(dp_object,
                     break
 
                 # If the buffer is full wait till it gets empty
-                if dash_player.buffer.qsize(
-                ) >= config_dash.NETFLIX_BUFFER_SIZE:
-                    delay = (dash_player.buffer.qsize() -
-                             config_dash.NETFLIX_BUFFER_SIZE +
-                             1) * segment_duration
-                    config_dash.LOG.info(
-                        "NETFLIX: delay = {} seconds".format(delay))
+                if dash_player.buffer.qsize() >= config_dash.NETFLIX_BUFFER_SIZE:
+                    delay = (dash_player.buffer.qsize() - config_dash.NETFLIX_BUFFER_SIZE + 1) * segment_duration
+                    config_dash.LOG.info("NETFLIX: delay = {} seconds".format(delay))
             else:
                 config_dash.LOG.error(
                     "Unknown playback type:{}. Continuing with basic playback".
@@ -416,7 +411,6 @@ def start_playback_smart(dp_object,
         except IOError as e:
             config_dash.LOG.error("Unable to save segment %s" % e)
             return None
-        #segment_download_time = timeit.default_timer() - start_time
         previous_segment_times.append(segment_download_time)
         recent_download_sizes.append(segment_size)
         # Updating the JSON information

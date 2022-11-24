@@ -75,7 +75,7 @@ RE_BUFFERING_COUNT = 1
 ALPHA_BUFFER_COUNT = 1
 BETA_BUFFER_COUNT = 2
 # Set the size of the buffer in terms of segments. Set to unlimited if 0 or None
-MAX_BUFFER_SIZE = 2
+MAX_BUFFER_SIZE = 5
 
 # ---------------------------------------------------
 # Netflix (Buffer-based) ADAPTATION
@@ -85,7 +85,7 @@ MAX_BUFFER_SIZE = 2
 NETFLIX_RESERVOIR = 0.1
 NETFLIX_CUSHION = 0.9
 # Buffer Size in Number of segments 240/4
-NETFLIX_BUFFER_SIZE = 60
+NETFLIX_BUFFER_SIZE = 5
 NETFLIX_INITIAL_BUFFER = 2
 NETFLIX_INITIAL_FACTOR = 0.875
 
