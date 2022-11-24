@@ -59,7 +59,7 @@ DOWNLOAD_CHUNK = 1024
 # Globals for arg parser with the default values
 # Not sure if this is the correct way ....
 MPD = None
-LIST = False
+LIST = True
 PLAYBACK = DEFAULT_PLAYBACK
 DOWNLOAD = False
 SEGMENT_LIMIT = None
@@ -206,6 +206,11 @@ def print_representations(dp_object):
     for bandwidth in dp_object.video:
         print(bandwidth)
 
+def compute_pensieve_qoe(my_quality = 0, prev_quality = 0, rebuffer_time = 0):
+    instability = abs(my_quality - prev_quality)
+    qoe = my_quality - instability - (3*rebuffer_time)
+    return qoe
+
 
 def start_playback_smart(dp_object,
                          domain,
@@ -281,11 +286,14 @@ def start_playback_smart(dp_object,
     netflix_rate_map = None
     average_segment_sizes = get_average_segment_sizes(dp_object)
     netflix_state = "INITIAL"
+    config_dash.JSON_HANDLE['playback_info']['segments'] = {}
+    config_dash.JSON_HANDLE['playback_info']['segments']['interruptions'] = []
     # Start playback of all the segments
     for segment_number, segment in enumerate(
             dp_list, dp_object.video[current_bitrate].start):        
         config_dash.LOG.info(" {}: Processing the segment {}".format(
             playback_type.upper(), segment_number))
+        config_dash.JSON_HANDLE['playback_info']['segments']['interruptions'].append(0)
         if not previous_bitrate:
             previous_bitrate = current_bitrate
         if SEGMENT_LIMIT:
@@ -437,6 +445,11 @@ def start_playback_smart(dp_object,
             'segment_number': segment_number
         }
         segment_duration = segment_info['playback_length']
+        my_quality = bitrates.index(current_bitrate)
+        prev_quality = bitrates.index(previous_bitrate)
+        rebuffer_time = config_dash.JSON_HANDLE['playback_info']['segments']['interruptions'][segment_number-1]
+        qoe = compute_pensieve_qoe(my_quality = my_quality, prev_quality = prev_quality, rebuffer_time = rebuffer_time)
+        print("QoE for {} is {}".format(segment_number, qoe))
         dash_player.write(segment_info)
         segment_files.append(segment_filename)
         config_dash.LOG.info(

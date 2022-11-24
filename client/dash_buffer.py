@@ -39,6 +39,7 @@ class DashPlayer:
         # Duration of the current buffer
         self.buffer_length = 0
         self.buffer_length_lock = threading.Lock()
+        self.interruption = 0
         # Buffer Constants
         self.initial_buffer = config_dash.INITIAL_BUFFERING_COUNT
         self.alpha = config_dash.ALPHA_BUFFER_COUNT
@@ -114,6 +115,10 @@ class DashPlayer:
 
             # If the playback encounters buffering during the playback
             if self.playback_state == "BUFFERING":
+                self.buffer_lock.acquire()
+                play_segment = self.buffer.get()
+                self.buffer_lock.release()
+                segment_number = play_segment['segment_number']
                 if not buffering:
                     config_dash.LOG.info(
                         "Entering buffering stage after {} seconds of playback"
@@ -137,6 +142,8 @@ class DashPlayer:
                         if interruption_start:
                             interruption_end = time.time()
                             interruption = interruption_end - interruption_start
+                            self.interruption = interruption
+                            config_dash.JSON_HANDLE['playback_info']['segments']['interruptions'][segment_number-1] = interruption
 
                             config_dash.JSON_HANDLE['playback_info'][
                                 'interruptions']['events'].append(
@@ -304,3 +311,5 @@ class DashPlayer:
                 "BufferStats: EpochTime=%s,CurrentPlaybackTime=%s,CurrentBufferSize=%s,"
                 "CurrentPlaybackState=%s,Action=%s,Bitrate=%s" %
                 tuple(str_stats))
+    
+    
