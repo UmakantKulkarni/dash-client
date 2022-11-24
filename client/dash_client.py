@@ -13,16 +13,16 @@ Testing:
     https://github.com/jancc/AStream
     https://stackoverflow.com/questions/57366845/how-to-concatenate-videos-in-ffmpeg-with-different-attributes/57367243#57367243
 
-    ffmpeg -y -copyts -start_at_zero -noaccurate_seek -i peru_8k_hdr_fuhd_60fps.mp4 \
+    ffmpeg -y -copyts -start_at_zero -noaccurate_seek -i /home/kulkarnu/experiments/transmitted_videos/video4/jellyfish6-crf10-streaming.mp4 \
     -keyint_min 48 -g 48 -frag_type duration -frag_duration 0.4 -sc_threshold 0 -c:v libx264 \
-    -profile:v main -crf 20 -c:a aac -ar 48000 -f dash -dash_segment_type mp4 \
-    -map v:0 -movflags frag_keyframe -s:0 640x360 -b:v:0 800k -maxrate:0 856k -bufsize:0 1200k -b:a:0 96k \
-    -map v:0 -movflags frag_keyframe -s:1 854x480 -b:v:1 1400k -maxrate:1 1498k -bufsize:1 2100k -b:a:1 128k \
-    -map v:0 -movflags frag_keyframe -s:2 1280x720 -b:v:2 2800k -maxrate:2 2996k -bufsize:2 4200k -b:a:2 128k \
-    -map v:0 -movflags frag_keyframe -s:3 1920x1080 -b:v:3 5000k -maxrate:3 5350k -bufsize:3 7500k -b:a:3 192k \
+    -profile:v main -crf 10 -c:a aac -ar 48000 -f dash -dash_segment_type mp4 \
+    -map v:0 -movflags frag_keyframe -s:0 640x360 \
+    -map v:0 -movflags frag_keyframe -s:1 854x480 \
+    -map v:0 -movflags frag_keyframe -s:2 1280x720 \
+    -map v:0 -movflags frag_keyframe -s:3 1920x1080 \
     -map 0:a \
     -init_seg_name chunk\$RepresentationID\$-index.mp4 -media_seg_name chunk\$RepresentationID\$-\$Number%05d\$.mp4 \
-    -use_template 0 -use_timeline 0  \
+    -use_template 0 -use_timeline 0 \
     -seg_duration 4 -adaptation_sets "id=0,streams=v id=1,streams=a" \
     dash.mpd
 """
@@ -332,8 +332,7 @@ def start_playback_smart(dp_object,
             elif playback_type.upper() == "NETFLIX":
                 config_dash.LOG.info("Playback is NETFLIX")
                 # Calculate the average segment sizes for each bitrate
-                if segment_number < len(
-                        dp_list) + dp_object.video[bitrate].start:
+                if segment_number <= len(dp_list):
                     try:
                         if segment_size and segment_download_time:
                             segment_download_rate = segment_size / segment_download_time
