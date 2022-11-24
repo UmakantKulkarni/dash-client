@@ -286,13 +286,13 @@ def start_playback_smart(dp_object,
     netflix_rate_map = None
     average_segment_sizes = get_average_segment_sizes(dp_object)
     netflix_state = "INITIAL"
+    qoe_index = 2
     # Start playback of all the segments
     for segment_number, segment in enumerate(
             dp_list, dp_object.video[current_bitrate].start):        
         config_dash.LOG.info(" {}: Processing the segment {}".format(
             playback_type.upper(), segment_number))
         dash_player.current_segment = segment_number
-        print("segment_number-1",segment_number-1)
         config_dash.JSON_HANDLE['playback_info']['interruptions']['events'].append([0, 0])
         if not previous_bitrate:
             previous_bitrate = current_bitrate
@@ -445,12 +445,11 @@ def start_playback_smart(dp_object,
             'segment_number': segment_number
         }
         segment_duration = segment_info['playback_length']
-        my_quality = bitrates.index(current_bitrate)
-        prev_quality = bitrates.index(previous_bitrate)
-        rebuffer_time = config_dash.JSON_HANDLE['playback_info']['interruptions']['events'][segment_number-1][1] - config_dash.JSON_HANDLE['playback_info']['interruptions']['events'][segment_number-1][0]
-        print("rebuffer_time",rebuffer_time)
-        qoe = compute_pensieve_qoe(my_quality = my_quality, prev_quality = prev_quality, rebuffer_time = rebuffer_time)
-        print("QoE for {} is {}".format(segment_number, qoe))
+        config_dash.JSON_HANDLE['playback_info']['segments']['quality'].append(bitrates.index(current_bitrate))
+        if segment_number > config_dash.MAX_BUFFER_SIZE:
+            qoe = compute_pensieve_qoe(my_quality = config_dash.JSON_HANDLE['playback_info']['segments']['quality'][qoe_index-1], prev_quality = config_dash.JSON_HANDLE['playback_info']['segments']['quality'][qoe_index-2], rebuffer_time = (config_dash.JSON_HANDLE['playback_info']['interruptions']['events'][qoe_index-1][1] - config_dash.JSON_HANDLE['playback_info']['interruptions']['events'][qoe_index-1][0]))
+            config_dash.LOG.info("QoE for Segment # {} is {}".format(qoe_index, qoe))
+            qoe_index = qoe_index + 1
         dash_player.write(segment_info)
         segment_files.append(segment_filename)
         config_dash.LOG.info(
@@ -463,6 +462,10 @@ def start_playback_smart(dp_object,
                 config_dash.JSON_HANDLE['playback_info']['down_shifts'] += 1
             previous_bitrate = current_bitrate
 
+    while qoe_index <= len(dp_list):
+        qoe = compute_pensieve_qoe(my_quality = config_dash.JSON_HANDLE['playback_info']['segments']['quality'][qoe_index-1], prev_quality = config_dash.JSON_HANDLE['playback_info']['segments']['quality'][qoe_index-2], rebuffer_time = (config_dash.JSON_HANDLE['playback_info']['interruptions']['events'][qoe_index-1][1] - config_dash.JSON_HANDLE['playback_info']['interruptions']['events'][qoe_index-1][0]))
+        config_dash.LOG.info("QoE for Segment # {} is {}".format(qoe_index, qoe))
+        qoe_index = qoe_index + 1
     # waiting for the player to finish playing
     while dash_player.playback_state not in dash_buffer.EXIT_STATES:
         time.sleep(1)

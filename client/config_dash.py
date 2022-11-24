@@ -55,6 +55,9 @@ JSON_HANDLE['playback_info'] = {
         'events': list(),
         'total_duration': 0
     },
+    'segments': {
+        'quality': list()
+    },
     'up_shifts': 0,
     'down_shifts': 0
 }
