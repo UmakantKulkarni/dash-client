@@ -208,7 +208,7 @@ def print_representations(dp_object):
 
 def compute_pensieve_qoe(my_quality = 0, prev_quality = 0, rebuffer_time = 0):
     instability = abs(my_quality - prev_quality)
-    qoe = my_quality - instability - (3*rebuffer_time)
+    qoe = my_quality - instability - (3*rebuffer_time/1000)
     return qoe
 
 
