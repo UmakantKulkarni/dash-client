@@ -206,9 +206,17 @@ def print_representations(dp_object):
     for bandwidth in dp_object.video:
         print(bandwidth)
 
-def compute_pensieve_qoe(my_quality = 0, prev_quality = 0, rebuffer_time = 0):
-    instability = abs(my_quality - prev_quality)
-    qoe = my_quality - instability - (3*rebuffer_time/1000)
+def compute_mpc_qoe(bitrates = [], my_quality = 0, prev_quality = 0, rebuffer_time = 0):
+    # https://conferences.sigcomm.org/sigcomm/2015/pdf/papers/p325.pdf
+    # Users’ QoE preferences: We compared the performance of the algorithms under 3 sets of QoE weights:
+    # “Balanced” (λ = 1, μ = μs = 3000)
+    # “Avoid Instability” (λ = 3, μ = μs = 3000)
+    # “Avoid Rebuffering” (λ = 1, μ = μs = 6000)
+    # Similar to equation 5 of https://doi.org/10.1186/s13174-021-00133-y
+    my_bitrate = (bitrates[my_quality]) / 1000
+    prev_bitrate = (bitrates[prev_quality]) / 1000
+    instability = abs(my_bitrate - prev_bitrate)
+    qoe = my_bitrate - instability - (3*rebuffer_time*1000)
     return qoe
 
 
@@ -447,7 +455,7 @@ def start_playback_smart(dp_object,
         segment_duration = segment_info['playback_length']
         config_dash.JSON_HANDLE['playback_info']['segments']['quality'].append(bitrates.index(current_bitrate))
         if segment_number > config_dash.MAX_BUFFER_SIZE:
-            qoe = compute_pensieve_qoe(my_quality = config_dash.JSON_HANDLE['playback_info']['segments']['quality'][qoe_index-1], prev_quality = config_dash.JSON_HANDLE['playback_info']['segments']['quality'][qoe_index-2], rebuffer_time = (config_dash.JSON_HANDLE['playback_info']['interruptions']['events'][qoe_index-1][1] - config_dash.JSON_HANDLE['playback_info']['interruptions']['events'][qoe_index-1][0]))
+            qoe = compute_mpc_qoe(bitrates = bitrates, my_quality = config_dash.JSON_HANDLE['playback_info']['segments']['quality'][qoe_index-1], prev_quality = config_dash.JSON_HANDLE['playback_info']['segments']['quality'][qoe_index-2], rebuffer_time = (config_dash.JSON_HANDLE['playback_info']['interruptions']['events'][qoe_index-1][1] - config_dash.JSON_HANDLE['playback_info']['interruptions']['events'][qoe_index-1][0]))
             config_dash.LOG.info("QoE for Segment # {} is {}".format(qoe_index, qoe))
             qoe_index = qoe_index + 1
         dash_player.write(segment_info)
@@ -463,7 +471,7 @@ def start_playback_smart(dp_object,
             previous_bitrate = current_bitrate
 
     while qoe_index <= len(dp_list):
-        qoe = compute_pensieve_qoe(my_quality = config_dash.JSON_HANDLE['playback_info']['segments']['quality'][qoe_index-1], prev_quality = config_dash.JSON_HANDLE['playback_info']['segments']['quality'][qoe_index-2], rebuffer_time = (config_dash.JSON_HANDLE['playback_info']['interruptions']['events'][qoe_index-1][1] - config_dash.JSON_HANDLE['playback_info']['interruptions']['events'][qoe_index-1][0]))
+        qoe = compute_mpc_qoe(bitrates = bitrates, my_quality = config_dash.JSON_HANDLE['playback_info']['segments']['quality'][qoe_index-1], prev_quality = config_dash.JSON_HANDLE['playback_info']['segments']['quality'][qoe_index-2], rebuffer_time = (config_dash.JSON_HANDLE['playback_info']['interruptions']['events'][qoe_index-1][1] - config_dash.JSON_HANDLE['playback_info']['interruptions']['events'][qoe_index-1][0]))
         config_dash.LOG.info("QoE for Segment # {} is {}".format(qoe_index, qoe))
         qoe_index = qoe_index + 1
     # waiting for the player to finish playing
