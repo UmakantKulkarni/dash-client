@@ -100,12 +100,9 @@ def netflix_dash(bitrates, dash_player, segment_download_rate, curr_bitrate,
             curr_bitrate] / segment_download_rate
         # Select the higher bitrate as long as delta B > 0.875 * V
         if delta_B > config_dash.NETFLIX_INITIAL_FACTOR * dash_player.segment_duration:
-            if curr_bitrate == bitrates[-1]:
-                next_bitrate = curr_bitrate
-            else:
+            if curr_bitrate != bitrates[-1]:
                 next_bitrate = bitrates[bitrates.index(curr_bitrate) + 1]
-        else:
-            next_bitrate = bitrates[bitrates.index(curr_bitrate) - 1]
+        state = "RUNNING"
         # if the current buffer occupancy is less that NETFLIX_INITIAL_BUFFER, then do NOY use rate map
         if not available_video_segments < config_dash.NETFLIX_INITIAL_BUFFER:
 
@@ -117,7 +114,6 @@ def netflix_dash(bitrates, dash_player, segment_download_rate, curr_bitrate,
             # Once the rate mao returns a higher value exit the 'INITIAL' stage
             if rate_map_next_bitrate > next_bitrate:
                 next_bitrate = rate_map_next_bitrate
-                state = "RUNNING"
     else:
         next_bitrate = get_rate_netflix(bitrates, available_video_segments,
                                         config_dash.NETFLIX_BUFFER_SIZE,

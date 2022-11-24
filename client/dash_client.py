@@ -142,15 +142,18 @@ def download_segment(segment_url, dash_folder, index_file=None):
         segment_path = segment_path[1:]
     segment_filename = os.path.join(dash_folder,
                                     os.path.basename(segment_path))
-    segment_temp_filename = os.path.join(dash_folder,
-                                    "temp"+os.path.basename(segment_path))
+    segment_temp_filename = os.path.join(
+        dash_folder, "temp" + os.path.basename(segment_path))
     make_sure_path_exists(os.path.dirname(segment_filename))
 
-    bashCommand = "curl -o {} -s -w 'total_time=%{{{}}}\\nsize_download=%{{{}}}\\n' {}".format(segment_temp_filename, "time_total", "size_download", segment_url)
+    bashCommand = "curl -o {} -s -w 'total_time=%{{{}}}\\nsize_download=%{{{}}}\\n' {}".format(
+        segment_temp_filename, "time_total", "size_download", segment_url)
     process = subprocess.Popen(bashCommand.split(), stdout=subprocess.PIPE)
     output, error = process.communicate()
-    segment_download_time = float(output.decode().split('\n')[0].replace("\r",'').split("=")[-1])
-    segment_size = int(output.decode().split('\n')[1].replace("\r",'').split("=")[-1])
+    segment_download_time = float(output.decode().split('\n')[0].replace(
+        "\r", '').split("=")[-1])
+    segment_size = int(output.decode().split('\n')[1].replace(
+        "\r", '').split("=")[-1])
     #print(segment_download_time, segment_size)
     start_time = timeit.default_timer()
     segment_file_handle = open(segment_filename, 'wb')
@@ -159,7 +162,8 @@ def download_segment(segment_url, dash_folder, index_file=None):
         shutil.copyfileobj(fo, segment_file_handle)
         fo.close()
     segment_file_handle.close()
-    with open(segment_filename, "ab") as myfile, open(segment_temp_filename, "rb") as file2:
+    with open(segment_filename, "ab") as myfile, open(segment_temp_filename,
+                                                      "rb") as file2:
         myfile.write(file2.read())
     try:
         os.remove(segment_temp_filename)
@@ -206,17 +210,24 @@ def print_representations(dp_object):
     for bandwidth in dp_object.video:
         print(bandwidth)
 
-def compute_mpc_qoe(bitrates = [], my_quality = 0, prev_quality = 0, rebuffer_time = 0):
+
+def compute_mpc_qoe(lamda=1,
+                    mu=3,
+                    bitrates=[],
+                    my_quality=0,
+                    prev_quality=0,
+                    rebuffer_time=0):
     # https://conferences.sigcomm.org/sigcomm/2015/pdf/papers/p325.pdf
     # Users’ QoE preferences: We compared the performance of the algorithms under 3 sets of QoE weights:
     # “Balanced” (λ = 1, μ = μs = 3000)
     # “Avoid Instability” (λ = 3, μ = μs = 3000)
     # “Avoid Rebuffering” (λ = 1, μ = μs = 6000)
     # Similar to equation 5 of https://doi.org/10.1186/s13174-021-00133-y
+    # bitrate is in Kbps and rebuffer time is in ms
     my_bitrate = (bitrates[my_quality]) / 1000
     prev_bitrate = (bitrates[prev_quality]) / 1000
     instability = abs(my_bitrate - prev_bitrate)
-    qoe = my_bitrate - instability - (3*rebuffer_time*1000)
+    qoe = my_bitrate - (lamda * instability) - (mu * rebuffer_time * 1000)
     return qoe
 
 
@@ -259,7 +270,7 @@ def start_playback_smart(dp_object,
         # Getting the URL list for each bitrate
         dp_object.video[bitrate] = read_mpd.get_url_list(
             dp_object, video_segment_duration, bitrate, brcount)
-        
+
         if "$Bandwidth$" in dp_object.video[bitrate].initialization:
             dp_object.video[bitrate].initialization = dp_object.video[
                 bitrate].initialization.replace("$Bandwidth$", str(bitrate))
@@ -297,11 +308,12 @@ def start_playback_smart(dp_object,
     qoe_index = 2
     # Start playback of all the segments
     for segment_number, segment in enumerate(
-            dp_list, dp_object.video[current_bitrate].start):        
+            dp_list, dp_object.video[current_bitrate].start):
         config_dash.LOG.info(" {}: Processing the segment {}".format(
             playback_type.upper(), segment_number))
         dash_player.current_segment = segment_number
-        config_dash.JSON_HANDLE['playback_info']['interruptions']['events'].append([0, 0])
+        config_dash.JSON_HANDLE['playback_info']['interruptions'][
+            'events'].append([0, 0])
         if not previous_bitrate:
             previous_bitrate = current_bitrate
         if SEGMENT_LIMIT:
@@ -368,10 +380,16 @@ def start_playback_smart(dp_object,
                         "Completed segment playback for Netflix")
                     break
 
-                # If the buffer is full wait till it gets empty
-                if dash_player.buffer.qsize() >= config_dash.NETFLIX_BUFFER_SIZE:
-                    delay = (dash_player.buffer.qsize() - config_dash.NETFLIX_BUFFER_SIZE + 1) * segment_duration
-                    config_dash.LOG.info("NETFLIX: delay = {} seconds".format(delay))
+                # If the buffer is full wait till it gets empty by 1 segment so that we can download the next one
+                # Reference - https://conferences.sigcomm.org/sigcomm/2015/pdf/papers/p325.pdf:
+                # In this paper we assume that the player immediately starts to download chunk k + 1 as soon as chunk k is downloaded.
+                # The one exception is when the buffer is full, the player waits for the buffer to reduce to a level which allows chunk k to be appended
+                if dash_player.buffer.qsize(
+                ) >= config_dash.NETFLIX_BUFFER_SIZE:
+                    delay = (dash_player.buffer.qsize() -
+                             config_dash.NETFLIX_BUFFER_SIZE + 1)
+                    config_dash.LOG.info("NETFLIX: delay = {} seconds".format(
+                        delay * segment_duration))
             else:
                 config_dash.LOG.error(
                     "Unknown playback type:{}. Continuing with basic playback".
@@ -453,10 +471,21 @@ def start_playback_smart(dp_object,
             'segment_number': segment_number
         }
         segment_duration = segment_info['playback_length']
-        config_dash.JSON_HANDLE['playback_info']['segments']['quality'].append(bitrates.index(current_bitrate))
+        config_dash.JSON_HANDLE['playback_info']['segments']['quality'].append(
+            bitrates.index(current_bitrate))
         if segment_number > config_dash.MAX_BUFFER_SIZE:
-            qoe = compute_mpc_qoe(bitrates = bitrates, my_quality = config_dash.JSON_HANDLE['playback_info']['segments']['quality'][qoe_index-1], prev_quality = config_dash.JSON_HANDLE['playback_info']['segments']['quality'][qoe_index-2], rebuffer_time = (config_dash.JSON_HANDLE['playback_info']['interruptions']['events'][qoe_index-1][1] - config_dash.JSON_HANDLE['playback_info']['interruptions']['events'][qoe_index-1][0]))
-            config_dash.LOG.info("QoE for Segment # {} is {}".format(qoe_index, qoe))
+            qoe = compute_mpc_qoe(
+                bitrates=bitrates,
+                my_quality=config_dash.JSON_HANDLE['playback_info']['segments']
+                ['quality'][qoe_index - 1],
+                prev_quality=config_dash.JSON_HANDLE['playback_info']
+                ['segments']['quality'][qoe_index - 2],
+                rebuffer_time=(config_dash.JSON_HANDLE['playback_info']
+                               ['interruptions']['events'][qoe_index - 1][1] -
+                               config_dash.JSON_HANDLE['playback_info']
+                               ['interruptions']['events'][qoe_index - 1][0]))
+            config_dash.LOG.info("QoE for Segment # {} is {}".format(
+                qoe_index, qoe))
             qoe_index = qoe_index + 1
         dash_player.write(segment_info)
         segment_files.append(segment_filename)
@@ -471,8 +500,18 @@ def start_playback_smart(dp_object,
             previous_bitrate = current_bitrate
 
     while qoe_index <= len(dp_list):
-        qoe = compute_mpc_qoe(bitrates = bitrates, my_quality = config_dash.JSON_HANDLE['playback_info']['segments']['quality'][qoe_index-1], prev_quality = config_dash.JSON_HANDLE['playback_info']['segments']['quality'][qoe_index-2], rebuffer_time = (config_dash.JSON_HANDLE['playback_info']['interruptions']['events'][qoe_index-1][1] - config_dash.JSON_HANDLE['playback_info']['interruptions']['events'][qoe_index-1][0]))
-        config_dash.LOG.info("QoE for Segment # {} is {}".format(qoe_index, qoe))
+        qoe = compute_mpc_qoe(
+            bitrates=bitrates,
+            my_quality=config_dash.JSON_HANDLE['playback_info']['segments']
+            ['quality'][qoe_index - 1],
+            prev_quality=config_dash.JSON_HANDLE['playback_info']['segments']
+            ['quality'][qoe_index - 2],
+            rebuffer_time=(config_dash.JSON_HANDLE['playback_info']
+                           ['interruptions']['events'][qoe_index - 1][1] -
+                           config_dash.JSON_HANDLE['playback_info']
+                           ['interruptions']['events'][qoe_index - 1][0]))
+        config_dash.LOG.info("QoE for Segment # {} is {}".format(
+            qoe_index, qoe))
         qoe_index = qoe_index + 1
     # waiting for the player to finish playing
     while dash_player.playback_state not in dash_buffer.EXIT_STATES:
@@ -507,8 +546,8 @@ def get_average_segment_sizes(dp_object):
         num_segments = len(dp_object.video[bitrate].url_list)
         total_video_duration = dp_object.playback_duration
         total_size = bitrate * total_video_duration
-        segment_size = total_size/num_segments
-        average_segment_sizes[bitrate] = segment_size*8/1000
+        segment_size = total_size / num_segments
+        average_segment_sizes[bitrate] = segment_size * 8 / 1000
         if 0:
             segment_sizes = dp_object.video[bitrate].segment_sizes
             segment_sizes = [float(i) for i in segment_sizes]

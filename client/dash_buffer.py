@@ -137,9 +137,12 @@ class DashPlayer:
                         if interruption_start:
                             interruption_end = time.time()
                             interruption = interruption_end - interruption_start
-                            
+
                             config_dash.JSON_HANDLE['playback_info'][
-                                'interruptions']['events'][self.current_segment-1] = [interruption_start, interruption_end]
+                                'interruptions']['events'][
+                                    self.current_segment - 1] = [
+                                        interruption_start, interruption_end
+                                    ]
                             config_dash.JSON_HANDLE['playback_info'][
                                 'interruptions'][
                                     'total_duration'] += interruption
@@ -303,5 +306,3 @@ class DashPlayer:
                 "BufferStats: EpochTime=%s,CurrentPlaybackTime=%s,CurrentBufferSize=%s,"
                 "CurrentPlaybackState=%s,Action=%s,Bitrate=%s" %
                 tuple(str_stats))
-    
-    
