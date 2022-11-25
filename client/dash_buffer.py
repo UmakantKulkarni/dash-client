@@ -28,6 +28,7 @@ class DashPlayer:
         # Timers to keep track of playback time and the actual time
         self.playback_timer = StopWatch()
         self.actual_start_time = None
+        self.initial_wait = 0
         # Playback State
         self.playback_state = "INITIALIZED"
         self.playback_state_lock = threading.Lock()
@@ -158,6 +159,7 @@ class DashPlayer:
                     initial_wait = time.time() - start_time
                     continue
                 else:
+                    self.initial_wait = initial_wait
                     config_dash.LOG.info(
                         "Initial Waiting Time = {}".format(initial_wait))
                     config_dash.JSON_HANDLE['playback_info'][

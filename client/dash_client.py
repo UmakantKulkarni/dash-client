@@ -41,6 +41,7 @@ import io
 import json
 import shutil
 import subprocess
+import pandas as pd
 from string import ascii_letters, digits
 from argparse import ArgumentParser
 from multiprocessing import Process, Queue
@@ -59,7 +60,7 @@ DOWNLOAD_CHUNK = 1024
 # Globals for arg parser with the default values
 # Not sure if this is the correct way ....
 MPD = None
-LIST = True
+LIST = False
 PLAYBACK = DEFAULT_PLAYBACK
 DOWNLOAD = False
 SEGMENT_LIMIT = None
@@ -81,7 +82,7 @@ class DashPlayback:
 
 def get_mpd(url):
     """ Module to download the MPD from the URL and save it to file"""
-    print(url)
+    #print(url)
     try:
         if url.find('https://') == 0:
             ctx = ssl.create_default_context()
@@ -305,7 +306,10 @@ def start_playback_smart(dp_object,
     netflix_rate_map = None
     average_segment_sizes = get_average_segment_sizes(dp_object)
     netflix_state = "INITIAL"
-    qoe_index = 2
+    qoe_index = 1
+    rebuffer_times = []
+    qualities = []
+    qoes = []
     # Start playback of all the segments
     for segment_number, segment in enumerate(
             dp_list, dp_object.video[current_bitrate].start):
@@ -472,23 +476,33 @@ def start_playback_smart(dp_object,
             'URI': segment_url,
             'segment_number': segment_number
         }
-        segment_duration = segment_info['playback_length']
-        config_dash.JSON_HANDLE['playback_info']['segments']['quality'].append(
-            bitrates.index(current_bitrate))
+
+        # Real-time QoE Computing
+        my_quality = bitrates.index(current_bitrate)
+        qualities.append(my_quality)
         if segment_number > config_dash.MAX_BUFFER_SIZE:
-            qoe = compute_mpc_qoe(
-                bitrates=bitrates,
-                my_quality=config_dash.JSON_HANDLE['playback_info']['segments']
-                ['quality'][qoe_index - 1],
-                prev_quality=config_dash.JSON_HANDLE['playback_info']
-                ['segments']['quality'][qoe_index - 2],
-                rebuffer_time=(config_dash.JSON_HANDLE['playback_info']
-                               ['interruptions']['events'][qoe_index - 1][1] -
-                               config_dash.JSON_HANDLE['playback_info']
-                               ['interruptions']['events'][qoe_index - 1][0]))
+            if qoe_index == 1:
+                rebuffer_time = dash_player.initial_wait
+                prev_quality = qualities[qoe_index - 1]
+            else:
+                rebuffer_time = (
+                    config_dash.JSON_HANDLE['playback_info']['interruptions']
+                    ['events'][qoe_index - 1][1] -
+                    config_dash.JSON_HANDLE['playback_info']['interruptions']
+                    ['events'][qoe_index - 1][0])
+                prev_quality = qualities[qoe_index - 2]
+            rebuffer_times.append(rebuffer_time)
+            config_dash.LOG.info("Rebuffer time for Segment # {} is {}".format(qoe_index, rebuffer_time))
+            qoe = compute_mpc_qoe(bitrates=bitrates,
+                                  my_quality=qualities[qoe_index - 1],
+                                  prev_quality=prev_quality,
+                                  rebuffer_time=rebuffer_time)
+            qoes.append(qoe)
             config_dash.LOG.info("QoE for Segment # {} is {}".format(
                 qoe_index, qoe))
             qoe_index = qoe_index + 1
+
+        segment_duration = segment_info['playback_length']
         dash_player.write(segment_info)
         segment_files.append(segment_filename)
         config_dash.LOG.info(
@@ -501,25 +515,53 @@ def start_playback_smart(dp_object,
                 config_dash.JSON_HANDLE['playback_info']['down_shifts'] += 1
             previous_bitrate = current_bitrate
 
+    # QoEs of last few segments
     while qoe_index <= len(dp_list):
-        qoe = compute_mpc_qoe(
-            bitrates=bitrates,
-            my_quality=config_dash.JSON_HANDLE['playback_info']['segments']
-            ['quality'][qoe_index - 1],
-            prev_quality=config_dash.JSON_HANDLE['playback_info']['segments']
-            ['quality'][qoe_index - 2],
-            rebuffer_time=(config_dash.JSON_HANDLE['playback_info']
-                           ['interruptions']['events'][qoe_index - 1][1] -
-                           config_dash.JSON_HANDLE['playback_info']
-                           ['interruptions']['events'][qoe_index - 1][0]))
+        rebuffer_time = (config_dash.JSON_HANDLE['playback_info']
+                         ['interruptions']['events'][qoe_index - 1][1] -
+                         config_dash.JSON_HANDLE['playback_info']
+                         ['interruptions']['events'][qoe_index - 1][0])
+        rebuffer_times.append(rebuffer_time)
+        qoe = compute_mpc_qoe(bitrates=bitrates,
+                              my_quality=qualities[qoe_index - 1],
+                              prev_quality=qualities[qoe_index - 2],
+                              rebuffer_time=rebuffer_time)
+        qoes.append(qoe)
         config_dash.LOG.info("QoE for Segment # {} is {}".format(
             qoe_index, qoe))
         qoe_index = qoe_index + 1
+
     # waiting for the player to finish playing
     while dash_player.playback_state not in dash_buffer.EXIT_STATES:
         time.sleep(1)
     if not download:
         clean_files(file_identifier)
+
+    #save qoe data to csv file
+    df_cols = [
+        "segment_num", "epoch_time", "current_playback_time",
+        "current_buffer_size", "quality", "bitrate", "interruption", "qoe"
+    ]
+    dash_buffer_csv = pd.read_csv(dash_player.buffer_log_file)
+    df_play = dash_buffer_csv[dash_buffer_csv['Action'].str.contains(
+        "Playing")]
+    df_play = df_play.reset_index(drop=True)
+    epoch_times = df_play["EpochTime"].tolist()
+    current_playback_time = df_play["CurrentPlaybackTime"].tolist()
+    current_buffer_sizes = df_play["CurrentBufferSize"].tolist()
+    bit_rates = df_play["Bitrate"].tolist()
+    segment_nums = [x for x in range(1, len(dp_list) + 1)]
+    df = pd.DataFrame({
+        df_cols[0]: segment_nums,
+        df_cols[1]: epoch_times,
+        df_cols[2]: current_playback_time,
+        df_cols[3]: current_buffer_sizes,
+        df_cols[4]: qualities,
+        df_cols[5]: bit_rates,
+        df_cols[6]: rebuffer_times,
+        df_cols[7]: qoes,
+    })
+    df.to_csv(config_dash.QOE_CSV_FILE, index=False)
 
 
 def get_segment_sizes(dp_object, segment_number):

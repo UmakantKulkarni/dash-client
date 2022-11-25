@@ -157,7 +157,7 @@ def read_mpd(mpd_file, dashplayback):
     #print child_period
     video_segment_duration = None
     if FORMAT == 0:
-        print("mpd format 0")
+        config_dash.LOG.info("DASH mpd format 0")
 
         for adaptation_set in child_period:
 
@@ -221,7 +221,7 @@ def read_mpd(mpd_file, dashplayback):
                                         "Segment Playback Duration = {}".
                                         format(video_segment_duration))
     elif FORMAT == 1:  #differentFormat
-        print("mpd format 1")
+        config_dash.LOG.info("DASH mpd format 1")
 
         for adaptation_set in child_period:
             for representation in adaptation_set:
