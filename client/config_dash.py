@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 #    AStream: Python based DASH player emulator to evaluate the rate adaptation algorithms
 #             for DASH.
@@ -26,29 +26,40 @@ import os
 LOG_NAME = None
 LOG_LEVEL = None
 
-CURR_TIME = strftime('%Y_%m_%d_%H_%M_%S')
+def init(LOG_FOLDER = ""):
+    CURR_TIME = strftime('%Y_%m_%d_%H_%M_%S')
+    # Set '-' to print to screen
+    #LOG_FOLDER = "log/"
+    if LOG_FOLDER and not os.path.exists(LOG_FOLDER):
+        os.makedirs(LOG_FOLDER)
 
-# Set '-' to print to screen
-LOG_FOLDER = "log/"
-if LOG_FOLDER and not os.path.exists(LOG_FOLDER):
-    os.makedirs(LOG_FOLDER)
+    global LOG_FILENAME
+    LOG_FILENAME = os.path.join(
+        LOG_FOLDER,
+        'DASH_CLIENT_LOG_{}.csv'.format(CURR_TIME)) if LOG_FOLDER else None
 
-LOG_FILENAME = os.path.join(
-    LOG_FOLDER,
-    'DASH_CLIENT_LOG_{}.csv'.format(CURR_TIME)) if LOG_FOLDER else None
-# Logs related to the statistics for the video
-# PLAYBACK_LOG_FILENAME = os.path.join(LOG_FOLDER, 'DASH_PLAYBACK_LOG_{}.csv'.format(CURR_TIME))
-# Buffer logs created by dash_buffer.py
-BUFFER_LOG_FILENAME = os.path.join(
-    LOG_FOLDER,
-    'DASH_BUFFER_LOG_{}.csv'.format(CURR_TIME)) if LOG_FOLDER else None
+    # Logs related to the statistics for the video
+    # PLAYBACK_LOG_FILENAME = os.path.join(LOG_FOLDER, 'DASH_PLAYBACK_LOG_{}.csv'.format(CURR_TIME))
+    # Buffer logs created by dash_buffer.py
+    global BUFFER_LOG_FILENAME
+    BUFFER_LOG_FILENAME = os.path.join(
+        LOG_FOLDER,
+        'DASH_BUFFER_LOG_{}.csv'.format(CURR_TIME)) if LOG_FOLDER else None
+    
+    # JSON Filename
+    global JSON_LOG
+    JSON_LOG = os.path.join(
+        LOG_FOLDER,
+        'ASTREAM{}.json'.format(CURR_TIME)) if LOG_FOLDER else None
+
+    global QOE_CSV_FILE
+    QOE_CSV_FILE = os.path.join(
+        LOG_FOLDER,
+        'QOE_CSV_{}.csv'.format(CURR_TIME)) if LOG_FOLDER else None
+
 LOG_FILE_HANDLE = None
 # To be set by configure_log_file.py
 LOG = None
-# JSON Filename
-JSON_LOG = os.path.join(
-    LOG_FOLDER,
-    'ASTREAM{}.json'.format(CURR_TIME)) if LOG_FOLDER else None
 JSON_HANDLE = dict()
 JSON_HANDLE['playback_info'] = {
     'start_time': None,
@@ -62,9 +73,7 @@ JSON_HANDLE['playback_info'] = {
     'up_shifts': 0,
     'down_shifts': 0
 }
-QOE_CSV_FILE = os.path.join(
-    LOG_FOLDER,
-    'QOE_CSV_{}.csv'.format(CURR_TIME)) if LOG_FOLDER else None
+
 
 # Constants for the BASIC-2 adaptation scheme
 BASIC_THRESHOLD = 1

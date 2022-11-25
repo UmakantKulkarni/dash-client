@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 __author__ = 'pjuluri'
 
 import config_dash

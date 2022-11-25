@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """ Module for reading the MPD file
     Author: Parikshit Juluri
     Contact : pjuluri@umkc.edu

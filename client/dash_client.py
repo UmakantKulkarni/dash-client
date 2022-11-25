@@ -48,8 +48,8 @@ from multiprocessing import Process, Queue
 from collections import defaultdict
 from adaptation import basic_dash, basic_dash2, weighted_dash, netflix_dash
 from adaptation.adaptation import WeightedMean
-from configure_log_file import configure_log_file, write_json
 import config_dash
+from configure_log_file import configure_log_file, write_json
 import dash_buffer
 import time
 
@@ -236,7 +236,8 @@ def start_playback_smart(dp_object,
                          domain,
                          playback_type=None,
                          download=False,
-                         video_segment_duration=None):
+                         video_segment_duration=None,
+                         file_identifier = ""):
     """ Module that downloads the MPD-FIle and download
         all the representations of the Module to download
         the MPEG-DASH media.
@@ -257,7 +258,8 @@ def start_playback_smart(dp_object,
                                          video_segment_duration)
     dash_player.start()
     # A folder to save the segments in
-    file_identifier = id_generator()
+    if file_identifier == "":
+        file_identifier = id_generator()
     config_dash.LOG.info("The segments are stored in %s" % file_identifier)
     dp_list = defaultdict(defaultdict)
     index_dict = {}
@@ -696,6 +698,10 @@ def create_arguments(parser):
                         action='store_true',
                         default=False,
                         help="Keep the video files after playback")
+    parser.add_argument('-o',
+                        '--LOG_FOLDER',
+                        default="log",
+                        help="Logs and download directory")
     parser.add_argument('-q',
                         '--QUIC',
                         action='store_true',
@@ -733,6 +739,8 @@ def main():
     create_arguments(parser)
     args = parser.parse_args()
     globals().update(vars(args))
+    LOG_FOLDER = args.LOG_FOLDER
+    config_dash.init(LOG_FOLDER=LOG_FOLDER)
     configure_log_file(playback_type=PLAYBACK.lower())
     config_dash.JSON_HANDLE['playback_type'] = PLAYBACK.lower()
     config_dash.JSON_HANDLE['transport'] = 'tcp'
@@ -763,15 +771,15 @@ def main():
     elif "basic" in PLAYBACK.lower():
         config_dash.LOG.critical("Started Basic-DASH Playback")
         start_playback_smart(dp_object, domain, "BASIC", DOWNLOAD,
-                             video_segment_duration)
+                             video_segment_duration, LOG_FOLDER)
     elif "sara" in PLAYBACK.lower():
         config_dash.LOG.critical("Started SARA-DASH Playback")
         start_playback_smart(dp_object, domain, "SMART", DOWNLOAD,
-                             video_segment_duration)
+                             video_segment_duration, LOG_FOLDER)
     elif "netflix" in PLAYBACK.lower():
         config_dash.LOG.critical("Started Netflix-DASH Playback")
         start_playback_smart(dp_object, domain, "NETFLIX", DOWNLOAD,
-                             video_segment_duration)
+                             video_segment_duration, LOG_FOLDER)
     else:
         config_dash.LOG.error("Unknown Playback parameter {}".format(PLAYBACK))
         return None

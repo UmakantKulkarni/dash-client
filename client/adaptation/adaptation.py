@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
 Adaptation algorithms
 1. basic_dash
