@@ -54,7 +54,7 @@ import dash_buffer
 import time
 
 # Constants
-DEFAULT_PLAYBACK = 'BASIC'
+DEFAULT_PLAYBACK = 'NETFLIX'
 DOWNLOAD_CHUNK = 1024
 
 # Globals for arg parser with the default values
@@ -237,7 +237,7 @@ def start_playback_smart(dp_object,
                          playback_type=None,
                          download=False,
                          video_segment_duration=None,
-                         file_identifier = ""):
+                         file_identifier=""):
     """ Module that downloads the MPD-FIle and download
         all the representations of the Module to download
         the MPEG-DASH media.
@@ -494,7 +494,8 @@ def start_playback_smart(dp_object,
                     ['events'][qoe_index - 1][0])
                 prev_quality = qualities[qoe_index - 2]
             rebuffer_times.append(rebuffer_time)
-            config_dash.LOG.info("Rebuffer time for Segment # {} is {}".format(qoe_index, rebuffer_time))
+            config_dash.LOG.info("Rebuffer time for Segment # {} is {}".format(
+                qoe_index, rebuffer_time))
             qoe = compute_mpc_qoe(bitrates=bitrates,
                                   my_quality=qualities[qoe_index - 1],
                                   prev_quality=prev_quality,
@@ -563,6 +564,8 @@ def start_playback_smart(dp_object,
         df_cols[6]: rebuffer_times,
         df_cols[7]: qoes,
     })
+    # normalize QoE by dividing all values with best QoE
+    df["nqoe"] = df[df_cols[7]] / (bitrates[-1] / 1000)
     df.to_csv(config_dash.QOE_CSV_FILE, index=False)
 
 
