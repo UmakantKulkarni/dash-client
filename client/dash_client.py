@@ -550,6 +550,7 @@ def start_playback_smart(dp_object,
         "current_buffer_size", "quality", "bitrate", "interruption", "qoe"
     ]
     dash_buffer_csv = pd.read_csv(dash_player.buffer_log_file)
+    dash_buffer_csv.dropna(inplace=True) 
     df_play = dash_buffer_csv[dash_buffer_csv['Action'].str.contains(
         "Playing")]
     df_play = df_play.reset_index(drop=True)
@@ -570,6 +571,8 @@ def start_playback_smart(dp_object,
     })
     max_qoe = bitrates[-1] / 1000
     df["nqoe"] = df[df_cols[7]] / max_qoe
+    config_dash.LOG.info("Average QoE = {}".format(df[df_cols[7]].mean()))
+    config_dash.LOG.info("Average n-QoE = {}".format(df["nqoe"].mean()))
     df.to_csv(config_dash.QOE_CSV_FILE, index=False)
 
 
