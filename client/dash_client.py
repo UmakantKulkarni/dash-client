@@ -564,8 +564,15 @@ def start_playback_smart(dp_object,
         df_cols[6]: rebuffer_times,
         df_cols[7]: qoes,
     })
-    # normalize QoE by dividing all values with best QoE
-    df["nqoe"] = df[df_cols[7]] / (bitrates[-1] / 1000)
+    #compute min and max qoes possible for a given video
+    min_qoe = compute_mpc_qoe(bitrates=bitrates,
+                              my_quality=0,
+                              prev_quality=len(bitrates) - 1,
+                              rebuffer_time=video_segment_duration)
+    max_qoe = bitrates[-1] / 1000
+    # normalize QoE using min-max normalizations so that negative values also gets mapped to positive values
+    # https://en.wikipedia.org/wiki/Feature_scaling#Rescaling_(min-max_normalization)                                  
+    df["nqoe"] = (df[df_cols[7]] - min_qoe) / (max_qoe - min_qoe)
     df.to_csv(config_dash.QOE_CSV_FILE, index=False)
 
 
