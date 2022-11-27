@@ -212,12 +212,13 @@ def print_representations(dp_object):
         print(bandwidth)
 
 
-def compute_mpc_qoe(lamda=1,
-                    mu=3,
-                    bitrates=[],
-                    my_quality=0,
-                    prev_quality=0,
-                    rebuffer_time=0):
+def compute_qoe(lamda=3,
+                mu=3,
+                bitrates=[],
+                my_quality=0,
+                prev_quality=0,
+                rebuffer_time=0):
+    # Pensieve - https://github.com/hongzimao/pensieve/blob/master/dash_client/player_code_noMPC/app/js/streaming/BufferController.js
     # https://conferences.sigcomm.org/sigcomm/2015/pdf/papers/p325.pdf
     # Users’ QoE preferences: We compared the performance of the algorithms under 3 sets of QoE weights:
     # “Balanced” (λ = 1, μ = μs = 3000)
@@ -496,10 +497,10 @@ def start_playback_smart(dp_object,
             rebuffer_times.append(rebuffer_time)
             config_dash.LOG.info("Rebuffer time for Segment # {} is {}".format(
                 qoe_index, rebuffer_time))
-            qoe = compute_mpc_qoe(bitrates=bitrates,
-                                  my_quality=qualities[qoe_index - 1],
-                                  prev_quality=prev_quality,
-                                  rebuffer_time=rebuffer_time)
+            qoe = compute_qoe(bitrates=bitrates,
+                              my_quality=qualities[qoe_index - 1],
+                              prev_quality=prev_quality,
+                              rebuffer_time=rebuffer_time)
             qoes.append(qoe)
             config_dash.LOG.info("QoE for Segment # {} is {}".format(
                 qoe_index, qoe))
@@ -525,10 +526,10 @@ def start_playback_smart(dp_object,
                          config_dash.JSON_HANDLE['playback_info']
                          ['interruptions']['events'][qoe_index - 1][0])
         rebuffer_times.append(rebuffer_time)
-        qoe = compute_mpc_qoe(bitrates=bitrates,
-                              my_quality=qualities[qoe_index - 1],
-                              prev_quality=qualities[qoe_index - 2],
-                              rebuffer_time=rebuffer_time)
+        qoe = compute_qoe(bitrates=bitrates,
+                          my_quality=qualities[qoe_index - 1],
+                          prev_quality=qualities[qoe_index - 2],
+                          rebuffer_time=rebuffer_time)
         qoes.append(qoe)
         config_dash.LOG.info("QoE for Segment # {} is {}".format(
             qoe_index, qoe))
@@ -565,13 +566,13 @@ def start_playback_smart(dp_object,
         df_cols[7]: qoes,
     })
     #compute min and max qoes possible for a given video
-    min_qoe = compute_mpc_qoe(bitrates=bitrates,
-                              my_quality=0,
-                              prev_quality=len(bitrates) - 1,
-                              rebuffer_time=video_segment_duration)
+    min_qoe = compute_qoe(bitrates=bitrates,
+                          my_quality=0,
+                          prev_quality=len(bitrates) - 1,
+                          rebuffer_time=video_segment_duration)
     max_qoe = bitrates[-1] / 1000
     # normalize QoE using min-max normalizations so that negative values also gets mapped to positive values
-    # https://en.wikipedia.org/wiki/Feature_scaling#Rescaling_(min-max_normalization)                                  
+    # https://en.wikipedia.org/wiki/Feature_scaling#Rescaling_(min-max_normalization)
     df["nqoe"] = (df[df_cols[7]] - min_qoe) / (max_qoe - min_qoe)
     df.to_csv(config_dash.QOE_CSV_FILE, index=False)
 
@@ -625,14 +626,15 @@ def clean_files(folder_path):
         try:
             for video_file in os.listdir(folder_path):
                 file_path = os.path.join(folder_path, video_file)
-                if os.path.isfile(file_path):
+                if file_path.endswith(".mp4") and os.path.isfile(file_path):
                     os.unlink(file_path)
-            os.rmdir(folder_path)
+            #os.rmdir(folder_path)
         except OSError as e:
-            config_dash.LOG.info("Unable to delete the folder {}. {}".format(
-                folder_path, e))
+            config_dash.LOG.info(
+                "Unable to delete the mp4 files in folder {}. {}".format(
+                    folder_path, e))
         config_dash.LOG.info(
-            "Deleted the folder '{}' and its contents".format(folder_path))
+            "Deleted the mp4 files from folder '{}'".format(folder_path))
 
 
 def start_playback_all(dp_object, domain):
