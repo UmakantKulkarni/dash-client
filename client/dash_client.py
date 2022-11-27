@@ -16,10 +16,13 @@ Testing:
     ffmpeg -y -copyts -start_at_zero -noaccurate_seek -i /home/kulkarnu/experiments/transmitted_videos/video4/jellyfish6-crf10-streaming.mp4 \
     -keyint_min 48 -g 48 -frag_type duration -frag_duration 0.4 -sc_threshold 0 -c:v libx264 \
     -profile:v main -crf 10 -c:a aac -ar 48000 -f dash -dash_segment_type mp4 \
-    -map v:0 -movflags frag_keyframe -s:0 640x360 \
-    -map v:0 -movflags frag_keyframe -s:1 854x480 \
-    -map v:0 -movflags frag_keyframe -s:2 1280x720 \
-    -map v:0 -movflags frag_keyframe -s:3 1920x1080 \
+    -map v:0 -movflags frag_keyframe -s:0 426x240 \
+    -map v:0 -movflags frag_keyframe -s:1 640x360 \
+    -map v:0 -movflags frag_keyframe -s:2 854x480 \
+    -map v:0 -movflags frag_keyframe -s:3 1024x600 \
+    -map v:0 -movflags frag_keyframe -s:4 1280x720 \
+    -map v:0 -movflags frag_keyframe -s:5 1600x900 \
+    -map v:0 -movflags frag_keyframe -s:6 1920x1080 \
     -map 0:a \
     -init_seg_name chunk\$RepresentationID\$-index.mp4 -media_seg_name chunk\$RepresentationID\$-\$Number%05d\$.mp4 \
     -use_template 0 -use_timeline 0 \
@@ -565,15 +568,8 @@ def start_playback_smart(dp_object,
         df_cols[6]: rebuffer_times,
         df_cols[7]: qoes,
     })
-    #compute min and max qoes possible for a given video
-    min_qoe = compute_qoe(bitrates=bitrates,
-                          my_quality=0,
-                          prev_quality=len(bitrates) - 1,
-                          rebuffer_time=video_segment_duration)
     max_qoe = bitrates[-1] / 1000
-    # normalize QoE using min-max normalizations so that negative values also gets mapped to positive values
-    # https://en.wikipedia.org/wiki/Feature_scaling#Rescaling_(min-max_normalization)
-    df["nqoe"] = (df[df_cols[7]] - min_qoe) / (max_qoe - min_qoe)
+    df["nqoe"] = df[df_cols[7]] / max_qoe
     df.to_csv(config_dash.QOE_CSV_FILE, index=False)
 
 
