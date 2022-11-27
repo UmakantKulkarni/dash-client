@@ -212,7 +212,7 @@ def print_representations(dp_object):
         print(bandwidth)
 
 
-def compute_qoe(lamda=3,
+def compute_qoe(lamda=1,
                 mu=3,
                 bitrates=[],
                 my_quality=0,
