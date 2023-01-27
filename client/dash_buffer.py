@@ -50,6 +50,7 @@ class DashPlayer:
         self.buffer = queue.Queue()
         self.buffer_lock = threading.Lock()
         self.current_segment = None
+        self.log_file = config_dash.LOG_FILENAME
         self.buffer_log_file = config_dash.BUFFER_LOG_FILENAME
         config_dash.LOG.info(
             "VideoLength={},segmentDuration={},MaxBufferSize={},InitialBuffer(secs)={},"

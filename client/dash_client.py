@@ -45,6 +45,7 @@ import json
 import shutil
 import subprocess
 import pandas as pd
+from datetime import datetime
 from string import ascii_letters, digits
 from argparse import ArgumentParser
 from multiprocessing import Process, Queue
@@ -546,9 +547,16 @@ def start_playback_smart(dp_object,
 
     #save qoe data to csv file
     df_cols = [
-        "segment_num", "epoch_time", "current_playback_time",
+        "segment_num", "unix_timestamp", "epoch_time", "current_playback_time",
         "current_buffer_size", "quality", "bitrate", "interruption", "qoe"
     ]
+    unix_timestamps = []
+    with open(dash_player.log_file, "r") as fp:
+        read_lines = [line for line in fp if "Reading the segment number" in line]
+    for line in read_lines:
+        datets = line.split(" - ")[0]
+        pdate = datetime.strptime(datets, '%Y-%m-%d %H:%M:%S,%f')
+        unix_timestamps.append(pdate.timestamp())
     dash_buffer_csv = pd.read_csv(dash_player.buffer_log_file)
     dash_buffer_csv.dropna(inplace=True) 
     df_play = dash_buffer_csv[dash_buffer_csv['Action'].str.contains(
@@ -561,13 +569,14 @@ def start_playback_smart(dp_object,
     segment_nums = [x for x in range(1, len(dp_list) + 1)]
     df = pd.DataFrame({
         df_cols[0]: segment_nums,
-        df_cols[1]: epoch_times,
-        df_cols[2]: current_playback_time,
-        df_cols[3]: current_buffer_sizes,
-        df_cols[4]: qualities,
-        df_cols[5]: bit_rates,
-        df_cols[6]: rebuffer_times,
-        df_cols[7]: qoes,
+        df_cols[1]: unix_timestamps,
+        df_cols[2]: epoch_times,
+        df_cols[3]: current_playback_time,
+        df_cols[4]: current_buffer_sizes,
+        df_cols[5]: qualities,
+        df_cols[6]: bit_rates,
+        df_cols[7]: rebuffer_times,
+        df_cols[8]: qoes,
     })
     max_qoe = bitrates[-1] / 1000
     df["nqoe"] = df[df_cols[7]] / max_qoe
