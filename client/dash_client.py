@@ -552,7 +552,7 @@ def start_playback_smart(dp_object,
     ]
     unix_timestamps = []
     with open(dash_player.log_file, "r") as fp:
-        read_lines = [line for line in fp if ": Processing the segment " in line]
+        read_lines = [line for line in fp if "Reading the segment number" in line]
     for line in read_lines:
         datets = line.split(" - ")[0]
         pdate = datetime.strptime(datets, '%Y-%m-%d %H:%M:%S,%f')
