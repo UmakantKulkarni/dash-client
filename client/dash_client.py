@@ -579,7 +579,7 @@ def start_playback_smart(dp_object,
         df_cols[8]: qoes,
     })
     max_qoe = bitrates[-1] / 1000
-    df["nqoe"] = df[df_cols[7]] / max_qoe
+    df["nqoe"] = df[df_cols[8]] / max_qoe
     config_dash.LOG.info("Average QoE = {}".format(df[df_cols[7]].mean()))
     config_dash.LOG.info("Average n-QoE = {}".format(df["nqoe"].mean()))
     df.to_csv(config_dash.QOE_CSV_FILE, index=False)
