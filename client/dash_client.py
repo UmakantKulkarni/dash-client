@@ -60,6 +60,7 @@ import time
 # Constants
 DEFAULT_PLAYBACK = 'NETFLIX'
 DOWNLOAD_CHUNK = 1024
+COMBINE_SEGMENTS = 0
 
 # Globals for arg parser with the default values
 # Not sure if this is the correct way ....
@@ -152,7 +153,7 @@ def download_segment(segment_url, dash_folder, index_file=None):
     make_sure_path_exists(os.path.dirname(segment_filename))
 
     bashCommand = "curl -o {} -s -w 'total_time=%{{{}}}\\nsize_download=%{{{}}}\\n' {}".format(
-        segment_temp_filename, "time_total", "size_download", segment_url)
+        segment_filename, "time_total", "size_download", segment_url)
     process = subprocess.Popen(bashCommand.split(), stdout=subprocess.PIPE)
     output, error = process.communicate()
     segment_download_time = float(output.decode().split('\n')[0].replace(
@@ -160,24 +161,26 @@ def download_segment(segment_url, dash_folder, index_file=None):
     segment_size = int(output.decode().split('\n')[1].replace(
         "\r", '').split("=")[-1])
     #print(segment_download_time, segment_size)
-    start_time = timeit.default_timer()
-    segment_file_handle = open(segment_filename, 'wb')
-    if index_file != None:
-        fo = open(index_file, "rb")
-        shutil.copyfileobj(fo, segment_file_handle)
-        fo.close()
-    segment_file_handle.close()
-    with open(segment_filename, "ab") as myfile, open(segment_temp_filename,
-                                                      "rb") as file2:
-        myfile.write(file2.read())
-    try:
-        os.remove(segment_temp_filename)
-    except:
-        pass
-    fio = timeit.default_timer() - start_time
-    #print("fio",fio)
-    #print "segment size = {}".format(segment_size)
-    #print "segment filename = {}".format(segment_filename)
+    if COMBINE_SEGMENTS:
+        start_time = timeit.default_timer()
+        segment_file_handle = open(segment_filename, 'wb')
+        if index_file != None:
+            fo = open(index_file, "rb")
+            shutil.copyfileobj(fo, segment_file_handle)
+            fo.close()
+        segment_file_handle.close()
+        with open(segment_filename, "ab") as myfile, open(segment_temp_filename,
+                                                        "rb") as file2:
+            myfile.write(file2.read())
+        try:
+            os.remove(segment_temp_filename)
+        except:
+            pass
+        #fio = timeit.default_timer() - start_time
+        #print("fio",fio)
+        #print "segment size = {}".format(segment_size)
+        #print "segment filename = {}".format(segment_filename)
+        
     return segment_size, segment_filename, segment_download_time
 
 
