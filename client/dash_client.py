@@ -152,15 +152,25 @@ def download_segment(segment_url, dash_folder, index_file=None):
         dash_folder, "temp" + os.path.basename(segment_path))
     make_sure_path_exists(os.path.dirname(segment_filename))
 
-    bashCommand = "curl -o {} -s -w 'total_time=%{{{}}}\\nsize_download=%{{{}}}\\n' {}".format(
-        segment_filename, "time_total", "size_download", segment_url)
+    bashCommand = "curl -o {} -s -w 'total_time=%{{{}}}\\nsize_download=%{{{}}}\\nhttp_code=%{{{}}}\\n' {}".format(
+        segment_filename, "time_total", "size_download", "http_code",
+        segment_url)
     process = subprocess.Popen(bashCommand.split(), stdout=subprocess.PIPE)
     output, error = process.communicate()
     segment_download_time = float(output.decode().split('\n')[0].replace(
         "\r", '').split("=")[-1])
     segment_size = int(output.decode().split('\n')[1].replace(
         "\r", '').split("=")[-1])
-    #print(segment_download_time, segment_size)
+    http_code = int(output.decode().split('\n')[2].replace("\r",
+                                                           '').split("=")[-1])
+    if not os.path.isfile(segment_filename):
+        raise FileNotFoundError(
+            "File {} was not found!".format(segment_filename))
+    if http_code != 200:
+        raise ValueError(
+            "HTTP Response code is not 200. It is {}".format(http_code))
+    #print(segment_download_time, segment_size, http_code)
+
     if COMBINE_SEGMENTS:
         start_time = timeit.default_timer()
         segment_file_handle = open(segment_filename, 'wb')
@@ -169,8 +179,8 @@ def download_segment(segment_url, dash_folder, index_file=None):
             shutil.copyfileobj(fo, segment_file_handle)
             fo.close()
         segment_file_handle.close()
-        with open(segment_filename, "ab") as myfile, open(segment_temp_filename,
-                                                        "rb") as file2:
+        with open(segment_filename,
+                  "ab") as myfile, open(segment_temp_filename, "rb") as file2:
             myfile.write(file2.read())
         try:
             os.remove(segment_temp_filename)
@@ -180,7 +190,7 @@ def download_segment(segment_url, dash_folder, index_file=None):
         #print("fio",fio)
         #print "segment size = {}".format(segment_size)
         #print "segment filename = {}".format(segment_filename)
-        
+
     return segment_size, segment_filename, segment_download_time
 
 
@@ -555,13 +565,15 @@ def start_playback_smart(dp_object,
     ]
     unix_timestamps = []
     with open(dash_player.log_file, "r") as fp:
-        read_lines = [line for line in fp if "Reading the segment number" in line]
+        read_lines = [
+            line for line in fp if "Reading the segment number" in line
+        ]
     for line in read_lines:
         datets = line.split(" - ")[0]
         pdate = datetime.strptime(datets, '%Y-%m-%d %H:%M:%S,%f')
         unix_timestamps.append(pdate.timestamp())
     dash_buffer_csv = pd.read_csv(dash_player.buffer_log_file)
-    dash_buffer_csv.dropna(inplace=True) 
+    dash_buffer_csv.dropna(inplace=True)
     df_play = dash_buffer_csv[dash_buffer_csv['Action'].str.contains(
         "Playing")]
     df_play = df_play.reset_index(drop=True)
