@@ -152,10 +152,11 @@ def download_segment(segment_url, dash_folder, index_file=None):
         dash_folder, "temp" + os.path.basename(segment_path))
     make_sure_path_exists(os.path.dirname(segment_filename))
 
+    #https://stackoverflow.com/a/42873372/12865444
     num_retries = 0
-    while num_retries < 5:
+    while num_retries < 1:
         num_retries = num_retries + 1
-        bashCommand = "curl -o {} -s -w 'total_time=%{{{}}}\\nsize_download=%{{{}}}\\nhttp_code=%{{{}}}\\n' {}".format(
+        bashCommand = "curl --connect-timeout 4 --max-time 10 --retry 5 --retry-delay 0 --retry-max-time 40 -o {} -s -w 'total_time=%{{{}}}\\nsize_download=%{{{}}}\\nhttp_code=%{{{}}}\\n' {}".format(
             segment_filename, "time_total", "size_download", "http_code",
             segment_url)
         process = subprocess.Popen(bashCommand.split(), stdout=subprocess.PIPE)
@@ -164,22 +165,27 @@ def download_segment(segment_url, dash_folder, index_file=None):
             "\r", '').split("=")[-1])
         segment_size = int(output.decode().split('\n')[1].replace(
             "\r", '').split("=")[-1])
-        http_code = int(output.decode().split('\n')[2].replace("\r",
-                                                            '').split("=")[-1])
+        http_code = int(output.decode().split('\n')[2].replace(
+            "\r", '').split("=")[-1])
         if not os.path.isfile(segment_filename):
-            config_dash.LOG.info("Basic-DASH: FileNotFoundError during segment download. # retry = {}".format(num_retries))
+            config_dash.LOG.info(
+                "Basic-DASH: FileNotFoundError during segment download - {}. # retry = {}"
+                .format(segment_filename, num_retries))
             if num_retries == 5:
                 raise FileNotFoundError(
                     "File {} was not found!".format(segment_filename))
             continue
         if http_code != 200:
-            config_dash.LOG.info("Basic-DASH: ValueError during segment download. # retry = {}".format(num_retries))
+            config_dash.LOG.info(
+                "Basic-DASH: ValueError during segment download; received http code = {}. # retry = {}"
+                .format(http_code, num_retries))
             if num_retries == 5:
                 raise ValueError(
-                    "HTTP Response code is not 200. It is {}".format(http_code))
+                    "HTTP Response code is not 200. It is {}".format(
+                        http_code))
             continue
         break
-        
+
     #print(segment_download_time, segment_size, http_code)
 
     if COMBINE_SEGMENTS:
