@@ -152,23 +152,34 @@ def download_segment(segment_url, dash_folder, index_file=None):
         dash_folder, "temp" + os.path.basename(segment_path))
     make_sure_path_exists(os.path.dirname(segment_filename))
 
-    bashCommand = "curl -o {} -s -w 'total_time=%{{{}}}\\nsize_download=%{{{}}}\\nhttp_code=%{{{}}}\\n' {}".format(
-        segment_filename, "time_total", "size_download", "http_code",
-        segment_url)
-    process = subprocess.Popen(bashCommand.split(), stdout=subprocess.PIPE)
-    output, error = process.communicate()
-    segment_download_time = float(output.decode().split('\n')[0].replace(
-        "\r", '').split("=")[-1])
-    segment_size = int(output.decode().split('\n')[1].replace(
-        "\r", '').split("=")[-1])
-    http_code = int(output.decode().split('\n')[2].replace("\r",
-                                                           '').split("=")[-1])
-    if not os.path.isfile(segment_filename):
-        raise FileNotFoundError(
-            "File {} was not found!".format(segment_filename))
-    if http_code != 200:
-        raise ValueError(
-            "HTTP Response code is not 200. It is {}".format(http_code))
+    num_retries = 0
+    while num_retries < 5:
+        num_retries = num_retries + 1
+        bashCommand = "curl -o {} -s -w 'total_time=%{{{}}}\\nsize_download=%{{{}}}\\nhttp_code=%{{{}}}\\n' {}".format(
+            segment_filename, "time_total", "size_download", "http_code",
+            segment_url)
+        process = subprocess.Popen(bashCommand.split(), stdout=subprocess.PIPE)
+        output, error = process.communicate()
+        segment_download_time = float(output.decode().split('\n')[0].replace(
+            "\r", '').split("=")[-1])
+        segment_size = int(output.decode().split('\n')[1].replace(
+            "\r", '').split("=")[-1])
+        http_code = int(output.decode().split('\n')[2].replace("\r",
+                                                            '').split("=")[-1])
+        if not os.path.isfile(segment_filename):
+            config_dash.LOG.info("Basic-DASH: FileNotFoundError during segment download. # retry = {}".format(num_retries))
+            if num_retries == 5:
+                raise FileNotFoundError(
+                    "File {} was not found!".format(segment_filename))
+            continue
+        if http_code != 200:
+            config_dash.LOG.info("Basic-DASH: ValueError during segment download. # retry = {}".format(num_retries))
+            if num_retries == 5:
+                raise ValueError(
+                    "HTTP Response code is not 200. It is {}".format(http_code))
+            continue
+        break
+        
     #print(segment_download_time, segment_size, http_code)
 
     if COMBINE_SEGMENTS:
