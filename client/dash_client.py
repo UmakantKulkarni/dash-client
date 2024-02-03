@@ -157,8 +157,8 @@ def download_segment(segment_url, dash_folder, index_file=None):
     num_retries = 0
     while num_retries < 1:
         num_retries = num_retries + 1
-        bashCommand = "curl --connect-timeout 4 --max-time 10 --retry 5 --retry-delay 0 --retry-max-time 40 -o {} -s -w 'total_time=%{{{}}}\\nsize_download=%{{{}}}\\nhttp_code=%{{{}}}\\n' {}".format(
-            segment_filename, "time_total", "size_download", "http_code",
+        bashCommand = "curl --connect-timeout 4 --max-time 10 --retry 5 --retry-delay 0 --retry-max-time 40 -s -w 'total_time=%{{{}}}\\nsize_download=%{{{}}}\\nhttp_code=%{{{}}}\\n' {}  > /dev/null".format(
+            "time_total", "size_download", "http_code",
             segment_url)
         process = subprocess.Popen(bashCommand.split(), stdout=subprocess.PIPE)
         output, error = process.communicate()
@@ -546,7 +546,8 @@ def start_playback_smart(dp_object,
                 qoes.append(qoe)
                 config_dash.LOG.info("QoE for Segment # {} is {}".format(
                     qoe_index, qoe))
-                real_time_qoe_csv_data = [qoe_index, qoe]
+                max_qoe = bitrates[-1] / 1000
+                real_time_qoe_csv_data = [qoe_index, qoe/max_qoe]
                 csv_writer.writerow(real_time_qoe_csv_data)
                 csv_file_writer.flush()
                 qoe_index = qoe_index + 1
@@ -582,7 +583,8 @@ def start_playback_smart(dp_object,
             qoes.append(qoe)
             config_dash.LOG.info("QoE for Segment # {} is {}".format(
                 qoe_index, qoe))
-            real_time_qoe_csv_data = [qoe_index, qoe]
+            max_qoe = bitrates[-1] / 1000
+            real_time_qoe_csv_data = [qoe_index, qoe/max_qoe]
             csv_writer.writerow(real_time_qoe_csv_data)
             csv_file_writer.flush()
             qoe_index = qoe_index + 1
