@@ -167,14 +167,15 @@ def download_segment(segment_url, dash_folder, index_file=None):
             "\r", '').split("=")[-1])
         http_code = int(output.decode().split('\n')[2].replace(
             "\r", '').split("=")[-1])
-        if not os.path.isfile(segment_filename):
-            config_dash.LOG.info(
-                "Basic-DASH: FileNotFoundError during segment download - {}. # retry = {}"
-                .format(segment_filename, num_retries))
-            if num_retries == 5:
-                raise FileNotFoundError(
-                    "File {} was not found!".format(segment_filename))
-            continue
+        if 0:
+            if not os.path.isfile(segment_filename):
+                config_dash.LOG.info(
+                    "Basic-DASH: FileNotFoundError during segment download - {}. # retry = {}"
+                    .format(segment_filename, num_retries))
+                if num_retries == 5:
+                    raise FileNotFoundError(
+                        "File {} was not found!".format(segment_filename))
+                continue
         if http_code != 200:
             config_dash.LOG.info(
                 "Basic-DASH: ValueError during segment download; received http code = {}. # retry = {}"
