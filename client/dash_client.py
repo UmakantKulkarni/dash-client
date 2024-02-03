@@ -546,6 +546,9 @@ def start_playback_smart(dp_object,
                 qoes.append(qoe)
                 config_dash.LOG.info("QoE for Segment # {} is {}".format(
                     qoe_index, qoe))
+                real_time_qoe_csv_data = [qoe_index, qoe]
+                csv_writer.writerow(real_time_qoe_csv_data)
+                csv_file_writer.flush()
                 qoe_index = qoe_index + 1
 
             segment_duration = segment_info['playback_length']
@@ -554,10 +557,6 @@ def start_playback_smart(dp_object,
             config_dash.LOG.info(
                 "Downloaded %s. Size = %s in %s seconds" %
                 (segment_url, segment_size, str(segment_download_time)))
-
-            real_time_qoe_csv_data = [qoe_index-1, qoe]
-            csv_writer.writerow(real_time_qoe_csv_data)
-            csv_file_writer.flush()
 
             if previous_bitrate:
                 if previous_bitrate < current_bitrate:
@@ -583,10 +582,10 @@ def start_playback_smart(dp_object,
             qoes.append(qoe)
             config_dash.LOG.info("QoE for Segment # {} is {}".format(
                 qoe_index, qoe))
-            qoe_index = qoe_index + 1
-            real_time_qoe_csv_data = [qoe_index-1, qoe]
+            real_time_qoe_csv_data = [qoe_index, qoe]
             csv_writer.writerow(real_time_qoe_csv_data)
             csv_file_writer.flush()
+            qoe_index = qoe_index + 1
 
     # waiting for the player to finish playing
     while dash_player.playback_state not in dash_buffer.EXIT_STATES:
