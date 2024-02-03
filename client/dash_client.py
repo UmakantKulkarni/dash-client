@@ -176,6 +176,11 @@ def download_segment(segment_url, dash_folder, index_file=None):
                 raise FileNotFoundError(
                     "File {} was not found!".format(segment_filename))
             continue
+        else:
+            try:
+                os.remove(segment_filename)
+            except:
+                pass
         if http_code != 200:
             config_dash.LOG.info(
                 "Basic-DASH: ValueError during segment download; received http code = {}. # retry = {}"
