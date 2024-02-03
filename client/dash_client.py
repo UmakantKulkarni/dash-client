@@ -41,6 +41,7 @@ import ssl
 import timeit
 import http.client
 import io
+import csv
 import json
 import shutil
 import subprocess
@@ -347,227 +348,245 @@ def start_playback_smart(dp_object,
     rebuffer_times = []
     qualities = []
     qoes = []
-    # Start playback of all the segments
-    for segment_number, segment in enumerate(
-            dp_list, dp_object.video[current_bitrate].start):
-        config_dash.LOG.info(" {}: Processing the segment {}".format(
-            playback_type.upper(), segment_number))
-        dash_player.current_segment = segment_number
-        config_dash.JSON_HANDLE['playback_info']['interruptions'][
-            'events'].append([0, 0])
-        if not previous_bitrate:
-            previous_bitrate = current_bitrate
-        if SEGMENT_LIMIT:
-            if not dash_player.segment_limit:
-                dash_player.segment_limit = int(SEGMENT_LIMIT)
-            if segment_number > int(SEGMENT_LIMIT):
-                config_dash.LOG.info("Segment limit reached")
-                break
-        #print("segment_number ={}".format(segment_number))
-        #print("dp_object.video[bitrate].start={}".format(dp_object.video[bitrate].start))
-        if segment_number == dp_object.video[bitrate].start:
-            current_bitrate = bitrates[0]
-        else:
-            if playback_type.upper() == "BASIC":
-                current_bitrate, average_dwn_time = basic_dash2.basic_dash2(
-                    segment_number, bitrates, average_dwn_time,
-                    recent_download_sizes, previous_segment_times,
-                    current_bitrate)
-
-                if dash_player.buffer.qsize() > config_dash.BASIC_THRESHOLD:
-                    delay = dash_player.buffer.qsize(
-                    ) - config_dash.BASIC_THRESHOLD
-                config_dash.LOG.info(
-                    "Basic-DASH: Selected {} for the segment {}".format(
-                        current_bitrate, segment_number + 1))
-            elif playback_type.upper() == "SMART":
-                if not weighted_mean_object:
-                    weighted_mean_object = WeightedMean(
-                        config_dash.SARA_SAMPLE_COUNT)
-                    config_dash.LOG.debug(
-                        "Initializing the weighted Mean object")
-                # Checking the segment number is in acceptable range
-                if segment_number < len(
-                        dp_list) - 1 + dp_object.video[bitrate].start:
-                    try:
-                        current_bitrate, delay = weighted_dash.weighted_dash(
-                            bitrates, dash_player,
-                            weighted_mean_object.weighted_mean_rate,
-                            current_bitrate,
-                            get_segment_sizes(dp_object, segment_number + 1))
-                    except IndexError as e:
-                        config_dash.LOG.error(e)
-
-            elif playback_type.upper() == "NETFLIX":
-                config_dash.LOG.info("Playback is NETFLIX")
-                # Calculate the average segment sizes for each bitrate
-                if segment_number <= len(dp_list):
-                    try:
-                        if segment_size and segment_download_time:
-                            segment_download_rate = segment_size / segment_download_time
-                        else:
-                            segment_download_rate = 0
-                        current_bitrate, netflix_rate_map, netflix_state = netflix_dash.netflix_dash(
-                            bitrates, dash_player, segment_download_rate,
-                            current_bitrate, average_segment_sizes,
-                            netflix_rate_map, netflix_state)
-                        config_dash.LOG.info(
-                            "NETFLIX: Next bitrate = {}".format(
-                                current_bitrate))
-                    except IndexError as e:
-                        config_dash.LOG.error(e)
-                else:
-                    config_dash.LOG.critical(
-                        "Completed segment playback for Netflix")
+    csv_file_header =  ["qoe_index", "qoe"]
+    real_time_qoe_csv_filename = os.path.join(file_identifier, "real_time_qoe.csv")
+    with open(real_time_qoe_csv_filename, 'a', newline='') as csv_file_writer:
+        csv_writer = csv.writer(csv_file_writer)
+        csv_writer.writerow(csv_file_header)
+        csv_file_writer.flush()
+        # Start playback of all the segments
+        for segment_number, segment in enumerate(
+                dp_list, dp_object.video[current_bitrate].start):
+            real_time_qoe_csv_data = []
+            config_dash.LOG.info(" {}: Processing the segment {}".format(
+                playback_type.upper(), segment_number))
+            dash_player.current_segment = segment_number
+            config_dash.JSON_HANDLE['playback_info']['interruptions'][
+                'events'].append([0, 0])
+            if not previous_bitrate:
+                previous_bitrate = current_bitrate
+            if SEGMENT_LIMIT:
+                if not dash_player.segment_limit:
+                    dash_player.segment_limit = int(SEGMENT_LIMIT)
+                if segment_number > int(SEGMENT_LIMIT):
+                    config_dash.LOG.info("Segment limit reached")
                     break
-
-                # If the buffer is full wait till it gets empty by 1 segment so that we can download the next one
-                # Reference - https://conferences.sigcomm.org/sigcomm/2015/pdf/papers/p325.pdf:
-                # In this paper we assume that the player immediately starts to download chunk k + 1 as soon as chunk k is downloaded.
-                # The one exception is when the buffer is full, the player waits for the buffer to reduce to a level which allows chunk k to be appended
-                # Also as per Figure 6 from http://tiny-tera.stanford.edu/~nickm/papers/sigcomm2014-video.pdf
-                # f(B) should be designed to en- sure a chunk can always be downloaded before the buffer shrinks into the reservoir area.
-                if dash_player.buffer.qsize(
-                ) >= config_dash.NETFLIX_BUFFER_SIZE:
-                    delay = (dash_player.buffer.qsize() -
-                             config_dash.NETFLIX_BUFFER_SIZE + 1)
-                    config_dash.LOG.info("NETFLIX: delay = {} seconds".format(
-                        delay * segment_duration))
+            #print("segment_number ={}".format(segment_number))
+            #print("dp_object.video[bitrate].start={}".format(dp_object.video[bitrate].start))
+            if segment_number == dp_object.video[bitrate].start:
+                current_bitrate = bitrates[0]
             else:
-                config_dash.LOG.error(
-                    "Unknown playback type:{}. Continuing with basic playback".
-                    format(playback_type))
-                current_bitrate, average_dwn_time = basic_dash.basic_dash(
-                    segment_number, bitrates, average_dwn_time,
-                    segment_download_time, current_bitrate)
-        segment_path = dp_list[segment][current_bitrate]
-        #print   "domain"
-        #print domain
-        #print "segment"
-        #print segment
-        #print "current bitrate"
-        #print current_bitrate
-        #print segment_path
-        segment_url = urllib.parse.urljoin(domain, segment_path)
-        #print "segment url"
-        #print segment_url
-        config_dash.LOG.info("{}: Segment URL = {}".format(
-            playback_type.upper(), segment_url))
-        if delay:
-            delay_start = time.time()
-            config_dash.LOG.info("SLEEPING for {}seconds ".format(
-                delay * segment_duration))
-            while time.time() - delay_start < (delay * segment_duration):
-                time.sleep(1)
-            delay = 0
-            config_dash.LOG.debug("SLEPT for {}seconds ".format(time.time() -
-                                                                delay_start))
-        segment_download_time = 0
-        try:
-            #print 'url'
+                if playback_type.upper() == "BASIC":
+                    current_bitrate, average_dwn_time = basic_dash2.basic_dash2(
+                        segment_number, bitrates, average_dwn_time,
+                        recent_download_sizes, previous_segment_times,
+                        current_bitrate)
+
+                    if dash_player.buffer.qsize() > config_dash.BASIC_THRESHOLD:
+                        delay = dash_player.buffer.qsize(
+                        ) - config_dash.BASIC_THRESHOLD
+                    config_dash.LOG.info(
+                        "Basic-DASH: Selected {} for the segment {}".format(
+                            current_bitrate, segment_number + 1))
+                elif playback_type.upper() == "SMART":
+                    if not weighted_mean_object:
+                        weighted_mean_object = WeightedMean(
+                            config_dash.SARA_SAMPLE_COUNT)
+                        config_dash.LOG.debug(
+                            "Initializing the weighted Mean object")
+                    # Checking the segment number is in acceptable range
+                    if segment_number < len(
+                            dp_list) - 1 + dp_object.video[bitrate].start:
+                        try:
+                            current_bitrate, delay = weighted_dash.weighted_dash(
+                                bitrates, dash_player,
+                                weighted_mean_object.weighted_mean_rate,
+                                current_bitrate,
+                                get_segment_sizes(dp_object, segment_number + 1))
+                        except IndexError as e:
+                            config_dash.LOG.error(e)
+
+                elif playback_type.upper() == "NETFLIX":
+                    config_dash.LOG.info("Playback is NETFLIX")
+                    # Calculate the average segment sizes for each bitrate
+                    if segment_number <= len(dp_list):
+                        try:
+                            if segment_size and segment_download_time:
+                                segment_download_rate = segment_size / segment_download_time
+                            else:
+                                segment_download_rate = 0
+                            current_bitrate, netflix_rate_map, netflix_state = netflix_dash.netflix_dash(
+                                bitrates, dash_player, segment_download_rate,
+                                current_bitrate, average_segment_sizes,
+                                netflix_rate_map, netflix_state)
+                            config_dash.LOG.info(
+                                "NETFLIX: Next bitrate = {}".format(
+                                    current_bitrate))
+                        except IndexError as e:
+                            config_dash.LOG.error(e)
+                    else:
+                        config_dash.LOG.critical(
+                            "Completed segment playback for Netflix")
+                        break
+
+                    # If the buffer is full wait till it gets empty by 1 segment so that we can download the next one
+                    # Reference - https://conferences.sigcomm.org/sigcomm/2015/pdf/papers/p325.pdf:
+                    # In this paper we assume that the player immediately starts to download chunk k + 1 as soon as chunk k is downloaded.
+                    # The one exception is when the buffer is full, the player waits for the buffer to reduce to a level which allows chunk k to be appended
+                    # Also as per Figure 6 from http://tiny-tera.stanford.edu/~nickm/papers/sigcomm2014-video.pdf
+                    # f(B) should be designed to en- sure a chunk can always be downloaded before the buffer shrinks into the reservoir area.
+                    if dash_player.buffer.qsize(
+                    ) >= config_dash.NETFLIX_BUFFER_SIZE:
+                        delay = (dash_player.buffer.qsize() -
+                                config_dash.NETFLIX_BUFFER_SIZE + 1)
+                        config_dash.LOG.info("NETFLIX: delay = {} seconds".format(
+                            delay * segment_duration))
+                else:
+                    config_dash.LOG.error(
+                        "Unknown playback type:{}. Continuing with basic playback".
+                        format(playback_type))
+                    current_bitrate, average_dwn_time = basic_dash.basic_dash(
+                        segment_number, bitrates, average_dwn_time,
+                        segment_download_time, current_bitrate)
+            segment_path = dp_list[segment][current_bitrate]
+            #print   "domain"
+            #print domain
+            #print "segment"
+            #print segment
+            #print "current bitrate"
+            #print current_bitrate
+            #print segment_path
+            segment_url = urllib.parse.urljoin(domain, segment_path)
+            #print "segment url"
             #print segment_url
-            #print 'file'
-            #print file_identifier
-            if not index_dict[str(int(current_bitrate))]["index_downloaded"]:
-                index_segment_url = urllib.parse.urljoin(
-                    domain, dp_object.video[current_bitrate].initialization)
-                _, index_segment_filename, _ = download_segment(
-                    index_segment_url, file_identifier)
-                index_dict[str(int(
-                    current_bitrate))]["index_file"] = index_segment_filename
-                config_dash.LOG.info("{}: Downloaded index segment {}".format(
-                    playback_type.upper(), index_segment_url))
-                index_dict[str(int(current_bitrate))]["index_downloaded"] = 1
-            segment_size, segment_filename, segment_download_time = download_segment(
-                segment_url,
-                file_identifier,
-                index_file=index_dict[str(int(current_bitrate))]["index_file"])
-            config_dash.LOG.info("{}: Downloaded segment {}".format(
+            config_dash.LOG.info("{}: Segment URL = {}".format(
                 playback_type.upper(), segment_url))
-        except IOError as e:
-            config_dash.LOG.error("Unable to save segment %s" % e)
-            return None
-        previous_segment_times.append(segment_download_time)
-        recent_download_sizes.append(segment_size)
-        # Updating the JSON information
-        segment_name = os.path.split(segment_url)[1]
-        if "segment_info" not in config_dash.JSON_HANDLE:
-            config_dash.JSON_HANDLE["segment_info"] = list()
-        config_dash.JSON_HANDLE["segment_info"].append(
-            (segment_name, current_bitrate, segment_size,
-             segment_download_time))
-        total_downloaded += segment_size
-        config_dash.LOG.info(
-            "{} : The total downloaded = {}, segment_size = {}, segment_number = {}"
-            .format(playback_type.upper(), total_downloaded, segment_size,
-                    segment_number))
-        if playback_type.upper() == "SMART" and weighted_mean_object:
-            weighted_mean_object.update_weighted_mean(segment_size,
-                                                      segment_download_time)
+            if delay:
+                delay_start = time.time()
+                config_dash.LOG.info("SLEEPING for {}seconds ".format(
+                    delay * segment_duration))
+                while time.time() - delay_start < (delay * segment_duration):
+                    time.sleep(1)
+                delay = 0
+                config_dash.LOG.debug("SLEPT for {}seconds ".format(time.time() -
+                                                                    delay_start))
+            segment_download_time = 0
+            try:
+                #print 'url'
+                #print segment_url
+                #print 'file'
+                #print file_identifier
+                if not index_dict[str(int(current_bitrate))]["index_downloaded"]:
+                    index_segment_url = urllib.parse.urljoin(
+                        domain, dp_object.video[current_bitrate].initialization)
+                    _, index_segment_filename, _ = download_segment(
+                        index_segment_url, file_identifier)
+                    index_dict[str(int(
+                        current_bitrate))]["index_file"] = index_segment_filename
+                    config_dash.LOG.info("{}: Downloaded index segment {}".format(
+                        playback_type.upper(), index_segment_url))
+                    index_dict[str(int(current_bitrate))]["index_downloaded"] = 1
+                segment_size, segment_filename, segment_download_time = download_segment(
+                    segment_url,
+                    file_identifier,
+                    index_file=index_dict[str(int(current_bitrate))]["index_file"])
+                config_dash.LOG.info("{}: Downloaded segment {}".format(
+                    playback_type.upper(), segment_url))
+            except IOError as e:
+                config_dash.LOG.error("Unable to save segment %s" % e)
+                return None
+            previous_segment_times.append(segment_download_time)
+            recent_download_sizes.append(segment_size)
+            # Updating the JSON information
+            segment_name = os.path.split(segment_url)[1]
+            if "segment_info" not in config_dash.JSON_HANDLE:
+                config_dash.JSON_HANDLE["segment_info"] = list()
+            config_dash.JSON_HANDLE["segment_info"].append(
+                (segment_name, current_bitrate, segment_size,
+                segment_download_time))
+            total_downloaded += segment_size
+            config_dash.LOG.info(
+                "{} : The total downloaded = {}, segment_size = {}, segment_number = {}"
+                .format(playback_type.upper(), total_downloaded, segment_size,
+                        segment_number))
+            if playback_type.upper() == "SMART" and weighted_mean_object:
+                weighted_mean_object.update_weighted_mean(segment_size,
+                                                        segment_download_time)
 
-        segment_info = {
-            'playback_length': video_segment_duration,
-            'size': segment_size,
-            'bitrate': current_bitrate,
-            'data': segment_filename,
-            'URI': segment_url,
-            'segment_number': segment_number
-        }
+            segment_info = {
+                'playback_length': video_segment_duration,
+                'size': segment_size,
+                'bitrate': current_bitrate,
+                'data': segment_filename,
+                'URI': segment_url,
+                'segment_number': segment_number
+            }
 
-        # Real-time QoE Computing
-        my_quality = bitrates.index(current_bitrate)
-        qualities.append(my_quality)
-        if segment_number > config_dash.MAX_BUFFER_SIZE:
-            if qoe_index == 1:
-                rebuffer_time = dash_player.initial_wait
-                prev_quality = qualities[qoe_index - 1]
-            else:
-                rebuffer_time = (
-                    config_dash.JSON_HANDLE['playback_info']['interruptions']
-                    ['events'][qoe_index - 1][1] -
-                    config_dash.JSON_HANDLE['playback_info']['interruptions']
-                    ['events'][qoe_index - 1][0])
-                prev_quality = qualities[qoe_index - 2]
+            # Real-time QoE Computing
+            my_quality = bitrates.index(current_bitrate)
+            qualities.append(my_quality)
+            if segment_number > config_dash.MAX_BUFFER_SIZE:
+                if qoe_index == 1:
+                    rebuffer_time = dash_player.initial_wait
+                    prev_quality = qualities[qoe_index - 1]
+                else:
+                    rebuffer_time = (
+                        config_dash.JSON_HANDLE['playback_info']['interruptions']
+                        ['events'][qoe_index - 1][1] -
+                        config_dash.JSON_HANDLE['playback_info']['interruptions']
+                        ['events'][qoe_index - 1][0])
+                    prev_quality = qualities[qoe_index - 2]
+                rebuffer_times.append(rebuffer_time)
+                config_dash.LOG.info("Rebuffer time for Segment # {} is {}".format(
+                    qoe_index, rebuffer_time))
+                qoe = compute_qoe(bitrates=bitrates,
+                                my_quality=qualities[qoe_index - 1],
+                                prev_quality=prev_quality,
+                                rebuffer_time=rebuffer_time)
+                qoes.append(qoe)
+                config_dash.LOG.info("QoE for Segment # {} is {}".format(
+                    qoe_index, qoe))
+                qoe_index = qoe_index + 1
+
+            segment_duration = segment_info['playback_length']
+            dash_player.write(segment_info)
+            segment_files.append(segment_filename)
+            config_dash.LOG.info(
+                "Downloaded %s. Size = %s in %s seconds" %
+                (segment_url, segment_size, str(segment_download_time)))
+
+            real_time_qoe_csv_data = [qoe_index-1, qoe]
+            csv_writer.writerow(real_time_qoe_csv_data)
+            csv_file_writer.flush()
+
+            if previous_bitrate:
+                if previous_bitrate < current_bitrate:
+                    config_dash.JSON_HANDLE['playback_info']['up_shifts'] += 1
+                elif previous_bitrate > current_bitrate:
+                    config_dash.JSON_HANDLE['playback_info']['down_shifts'] += 1
+                previous_bitrate = current_bitrate
+
+    with open(real_time_qoe_csv_filename, 'a', newline='') as csv_file_writer:
+        csv_writer = csv.writer(csv_file_writer)
+        # QoEs of last few segments
+        while qoe_index <= len(dp_list):
+            real_time_qoe_csv_data = []
+            rebuffer_time = (config_dash.JSON_HANDLE['playback_info']
+                            ['interruptions']['events'][qoe_index - 1][1] -
+                            config_dash.JSON_HANDLE['playback_info']
+                            ['interruptions']['events'][qoe_index - 1][0])
             rebuffer_times.append(rebuffer_time)
-            config_dash.LOG.info("Rebuffer time for Segment # {} is {}".format(
-                qoe_index, rebuffer_time))
             qoe = compute_qoe(bitrates=bitrates,
-                              my_quality=qualities[qoe_index - 1],
-                              prev_quality=prev_quality,
-                              rebuffer_time=rebuffer_time)
+                            my_quality=qualities[qoe_index - 1],
+                            prev_quality=qualities[qoe_index - 2],
+                            rebuffer_time=rebuffer_time)
             qoes.append(qoe)
             config_dash.LOG.info("QoE for Segment # {} is {}".format(
                 qoe_index, qoe))
             qoe_index = qoe_index + 1
-
-        segment_duration = segment_info['playback_length']
-        dash_player.write(segment_info)
-        segment_files.append(segment_filename)
-        config_dash.LOG.info(
-            "Downloaded %s. Size = %s in %s seconds" %
-            (segment_url, segment_size, str(segment_download_time)))
-        if previous_bitrate:
-            if previous_bitrate < current_bitrate:
-                config_dash.JSON_HANDLE['playback_info']['up_shifts'] += 1
-            elif previous_bitrate > current_bitrate:
-                config_dash.JSON_HANDLE['playback_info']['down_shifts'] += 1
-            previous_bitrate = current_bitrate
-
-    # QoEs of last few segments
-    while qoe_index <= len(dp_list):
-        rebuffer_time = (config_dash.JSON_HANDLE['playback_info']
-                         ['interruptions']['events'][qoe_index - 1][1] -
-                         config_dash.JSON_HANDLE['playback_info']
-                         ['interruptions']['events'][qoe_index - 1][0])
-        rebuffer_times.append(rebuffer_time)
-        qoe = compute_qoe(bitrates=bitrates,
-                          my_quality=qualities[qoe_index - 1],
-                          prev_quality=qualities[qoe_index - 2],
-                          rebuffer_time=rebuffer_time)
-        qoes.append(qoe)
-        config_dash.LOG.info("QoE for Segment # {} is {}".format(
-            qoe_index, qoe))
-        qoe_index = qoe_index + 1
+            real_time_qoe_csv_data = [qoe_index-1, qoe]
+            csv_writer.writerow(real_time_qoe_csv_data)
+            csv_file_writer.flush()
 
     # waiting for the player to finish playing
     while dash_player.playback_state not in dash_buffer.EXIT_STATES:
