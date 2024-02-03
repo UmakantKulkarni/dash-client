@@ -158,7 +158,7 @@ def download_segment(segment_url, dash_folder, index_file=None):
     while num_retries < 1:
         num_retries = num_retries + 1
         bashCommand = "curl --connect-timeout 4 --max-time 10 --retry 5 --retry-delay 0 --retry-max-time 40 -o {} -s -w 'total_time=%{{{}}}\\nsize_download=%{{{}}}\\nhttp_code=%{{{}}}\\n' {}".format(
-            "/dev/null", "time_total", "size_download", "http_code",
+            segment_filename, "time_total", "size_download", "http_code",
             segment_url)
         process = subprocess.Popen(bashCommand.split(), stdout=subprocess.PIPE)
         output, error = process.communicate()
