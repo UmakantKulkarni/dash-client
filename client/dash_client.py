@@ -43,6 +43,7 @@ import http.client
 import io
 import json
 import shutil
+import socket
 import subprocess
 import pandas as pd
 from datetime import datetime
@@ -347,6 +348,15 @@ def start_playback_smart(dp_object,
     rebuffer_times = []
     qualities = []
     qoes = []
+
+    # Get the hostname of the device and extract the last part
+    full_hostname = socket.gethostname()  # e.g., "smc-client-1"
+    client_name = "client" + str(full_hostname.split('-')[-1])  # e.g., "client1"
+    real_time_csv_filedir = os.path.dirname(config_dash.QOE_CSV_FILE)
+    real_time_csv_file = os.path.join(real_time_csv_filedir, "real_time_qoe_{}.csv".format(client_name))
+    with open(real_time_csv_file, "w") as f:
+        f.write("segment_num,current_buffer_size,quality,bitrate,interruption,nqoe,client_name\n")
+
     # Start playback of all the segments
     for segment_number, segment in enumerate(
             dp_list, dp_object.video[current_bitrate].start):
@@ -538,6 +548,27 @@ def start_playback_smart(dp_object,
             qoes.append(qoe)
             config_dash.LOG.info("QoE for Segment # {} is {}".format(
                 qoe_index, qoe))
+            
+            # Extract real-time data from buffer log
+            dash_buffer_csv = pd.read_csv(dash_player.buffer_log_file)
+            dash_buffer_csv.dropna(inplace=True)
+            df_play = dash_buffer_csv[dash_buffer_csv['Action'].str.contains("Playing")]
+            df_play = df_play.reset_index(drop=True)
+
+            if not df_play.empty and segment_number < len(df_play):
+                current_buffer_size = df_play.loc[segment_number, "CurrentBufferSize"]
+                bit_rate = df_play.loc[segment_number, "Bitrate"]
+            else:
+                current_buffer_size = 0
+                bit_rate = 0
+
+            max_qoe = bitrates[-1] / 1000
+            nqoe = qoe / max_qoe
+            nqoe = round(nqoe, 4)
+            # Write real-time QoE data to the CSV file
+            with open(real_time_csv_file, "a") as f:
+                f.write(f"{qoe_index},{current_buffer_size},{my_quality},{current_bitrate},{rebuffer_time},{nqoe},{client_name}\n")
+
             qoe_index = qoe_index + 1
 
         segment_duration = segment_info['playback_length']
