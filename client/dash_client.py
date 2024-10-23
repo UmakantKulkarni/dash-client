@@ -43,7 +43,6 @@ import http.client
 import io
 import json
 import shutil
-import socket
 import subprocess
 import pandas as pd
 from datetime import datetime
@@ -349,13 +348,10 @@ def start_playback_smart(dp_object,
     qualities = []
     qoes = []
 
-    # Get the hostname of the device and extract the last part
-    full_hostname = socket.gethostname()  # e.g., "smc-client-1"
-    client_name = "client" + str(full_hostname.split('-')[-1])  # e.g., "client1"
     real_time_csv_filedir = os.path.dirname(config_dash.QOE_CSV_FILE)
-    real_time_csv_file = os.path.join(real_time_csv_filedir, "real_time_qoe_{}.csv".format(client_name))
+    real_time_csv_file = os.path.join(real_time_csv_filedir, "real_time_qoe.csv")
     with open(real_time_csv_file, "w") as f:
-        f.write("segment_num,current_buffer_size,quality,bitrate,interruption,nqoe,client_name\n")
+        f.write("segment_num,current_buffer_size,quality,bitrate,interruption,nqoe\n")
 
     # Start playback of all the segments
     for segment_number, segment in enumerate(
@@ -567,7 +563,7 @@ def start_playback_smart(dp_object,
             nqoe = round(nqoe, 4)
             # Write real-time QoE data to the CSV file
             with open(real_time_csv_file, "a") as f:
-                f.write(f"{qoe_index},{current_buffer_size},{my_quality},{current_bitrate},{rebuffer_time},{nqoe},{client_name}\n")
+                f.write(f"{qoe_index},{current_buffer_size},{my_quality},{current_bitrate},{rebuffer_time},{nqoe}\n")
 
             qoe_index = qoe_index + 1
 
