@@ -351,7 +351,7 @@ def start_playback_smart(dp_object,
     real_time_csv_filedir = os.path.dirname(config_dash.QOE_CSV_FILE)
     real_time_csv_file = os.path.join(real_time_csv_filedir, "real_time_qoe.csv")
     with open(real_time_csv_file, "w") as f:
-        f.write("segment_num,current_buffer_size,quality,bitrate,interruption,nqoe\n")
+        f.write("current_buffer_size,quality,bitrate,interruption\n")
 
     # Start playback of all the segments
     for segment_number, segment in enumerate(
@@ -563,7 +563,7 @@ def start_playback_smart(dp_object,
             nqoe = round(nqoe, 4)
             # Write real-time QoE data to the CSV file
             with open(real_time_csv_file, "a") as f:
-                f.write(f"{qoe_index},{current_buffer_size},{my_quality},{current_bitrate},{rebuffer_time},{nqoe}\n")
+                f.write(f"{current_buffer_size},{my_quality},{current_bitrate},{rebuffer_time}\n")
 
             qoe_index = qoe_index + 1
 
