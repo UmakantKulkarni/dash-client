@@ -550,14 +550,7 @@ def start_playback_smart(dp_object,
             dash_buffer_csv.dropna(inplace=True)
             df_play = dash_buffer_csv[dash_buffer_csv['Action'].str.contains("Playing")]
             df_play = df_play.reset_index(drop=True)
-
-            if not df_play.empty and segment_number < len(df_play):
-                current_buffer_size = df_play.loc[segment_number, "CurrentBufferSize"]
-                bit_rate = df_play.loc[segment_number, "Bitrate"]
-            else:
-                current_buffer_size = 0
-                bit_rate = 0
-
+            current_buffer_size = dash_player.buffer.qsize()
             max_qoe = bitrates[-1] / 1000
             nqoe = qoe / max_qoe
             nqoe = round(nqoe, 4)
